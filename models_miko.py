@@ -23,6 +23,7 @@ from mne.decoding import BaseEstimator
 from .utils import lag_matrix, lag_span, lag_sparse, mem_check
 from .vizu import get_spatial_colors
 from scipy import linalg
+import seaborn
 
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
 logging.basicConfig(level=logging.WARNING)

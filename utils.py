@@ -480,3 +480,14 @@ def lag_finder(y1, y2, Fs):
 
     return int(delay*Fs)
 
+def get_timing(spikes):
+    "return timing of spikes"
+    timing = []
+    for i in range(len(spikes)):
+        if spikes[i] == 1:
+            timing.append(i)
+    return timing
+            
+
+    
+    
