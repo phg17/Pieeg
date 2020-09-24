@@ -181,7 +181,7 @@ class TRFEstimator(BaseEstimator):
     >>> trf.fit(x, y, lagged=False)
     """
 
-    def __init__(self, times=(0.,), tmin=None, tmax=None, srate=1., alpha=[0.], fit_intercept=False, mtype='Forward'):
+    def __init__(self, times=(0.,), tmin=None, tmax=None, srate=1., alpha=[0.], fit_intercept=False, mtype='forward'):
 
         # Times reflect mismatch a -> b, where a - dependent, b - predicted
         # Negative timelags indicate a lagging behind b
@@ -488,7 +488,7 @@ class TRFEstimator(BaseEstimator):
         if self.fit_intercept:
             betas = np.concatenate((self.intercept_, self.coef_), axis=0)
         else:
-            betas = self.coef_[:]
+            betas = self.get_coef()
 
         # Check if input has been lagged already, if not, do it:
         if X.shape[1] != int(self.fit_intercept) + len(self.lags) * self.n_feats_:
@@ -738,7 +738,7 @@ class TRFEstimator(BaseEstimator):
                     for kc, l in enumerate(lines):
                         l.set_color(colors[kc])
             else:
-                ax[k].plot(self.times, self.coef_[:, feat, :])
+                ax[k].plot(self.times, self.get_coef()[:, feat, :,0])
                 if self.feat_names_:
                     ax[k].set_title('{:s}'.format(self.feat_names_[feat]))
                 if spatial_colors:

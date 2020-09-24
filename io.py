@@ -396,11 +396,17 @@ def get_name(parameter,name,count,Fs):
     else:
         filename = str(condition['type']) + '_' + name + '_' + str(Fs) + 'Hz_' + str(count) + '_' +  '.pkl'  
     file = ospath.join(path_save,filename)
+    
     return file
-    
-    
-    
-    
+
+def raw_info():
+    name = 'jon'
+    session = 1
+    fname = ospath.join(path_data,name,'Session ' + str(session),name + '.vhdr')
+    fpreload = ospath.join(path_data,name,'Session ' + str(session),name + "_preload")
+    raw = mne.io.read_raw_brainvision(fname, preload = fpreload, verbose='ERROR')
+    raw.set_eeg_reference('average', projection=True)
+    return raw.info
     
     
     
