@@ -257,6 +257,8 @@ class ERP_class():
         self.ERP =np.zeros(len(self.window))
         self.mERP =np.zeros([len(self.window),n_chan])
         self.single_events = []
+        self.peak_time = None
+        self.peak_arg = None
         
     def add_data(self,eeg,events,event_type = 'spikes'):
 
@@ -271,9 +273,11 @@ class ERP_class():
                 event = events_list[i] 
                 self.ERP += np.sum((eeg[self.window + event]),axis=1)
                 self.mERP += eeg[self.window + event,:]
-                self.single_events.append(np.sum(np.abs(eeg[self.window + event]),axis=1))
+                self.single_events.append(np.sum((eeg[self.window + event]),axis=1))
             except:
                 print('out of window')
+        self.peak_time = np.argmax(self.ERP) / self.srate + self.tmin
+        self.peak_arg = np.argmax(self.ERP) + self.tmin * self.srate
                 
     def weight_data(self,eeg,cont_stim):
     
@@ -628,7 +632,7 @@ class TRFEstimator(BaseEstimator):
         if self.fit_intercept:
             betas = np.concatenate((self.intercept_, self.coef_), axis=0)
         else:
-            betas = self.coef_[:]
+            betas = self.get_coef()[:]
 
         # Check if input has been lagged already, if not, do it:
         if X.shape[1] != int(self.fit_intercept) + len(self.lags) * self.n_feats_:
@@ -638,7 +642,7 @@ class TRFEstimator(BaseEstimator):
                 X = np.hstack([np.ones((len(X), 1)), X])
         
         # Do it for every alpha
-        pred = np.stack([X.dot(betas[:,:,i]) for i in range(betas.shape[-1])], axis=-1)
+        pred = np.stack([X.dot(betas[:,:,:,i]) for i in range(betas.shape[-1])], axis=-1)
 
         return pred # Shape T x Nchan x Alpha
     

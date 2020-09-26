@@ -489,5 +489,17 @@ def get_timing(spikes):
     return timing
             
 
+def compression_eeg(signal,comp_fact = 1):
+    sign = np.sign(signal)
+    value = np.abs(signal)**comp_fact
+    return np.multiply(sign,value)
+
+
+def create_events(dirac):
+    timing = get_timing(dirac)
+    events = np.zeros([len(timing),3])
+    events[:,2] += 1
+    events[:,0] = timing
+    return events.astype(int)
     
     

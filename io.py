@@ -21,6 +21,7 @@ from scipy.io.wavfile import read as wavread
 import os.path as ospath
 #import utils
 from .utils import lag_finder, AddNoisePostNorm, signal_envelope
+from sklearn.preprocessing import scale
 
 # MNE:
 import mne
@@ -70,7 +71,64 @@ def load_mat(fname):
     return data
 
 
-def load_eeg_data(name, session, Fs = 1000, low_freq = 1, high_freq = 20 , ica_data=False):
+def load_eeg_data(name, session, Fs = 1000, low_freq = 1, high_freq = 20 , ica=False):
+    """"
+    Load eeg brainvision structure and returns data, channel names,
+    sampling frequency and other useful data in a tuple
+
+    Parameters
+    ----------
+    fname : str
+        File path to .set EEGLAB file
+
+    Returns
+    -------
+    eeg : ndarray
+    srate : float
+    time : ndarray
+        Vector of time points
+    events : ndarray
+        Array of event onsets
+    event_type : list
+        Event type or names
+    chnames : list
+    stimtrack, button Press, Diode : ndarray
+    """
+    
+    fname = ospath.join(path_data,name,'Session ' + str(session),name + '.vhdr')
+    fpreload = ospath.join(path_data,name,'Session ' + str(session),name + "_preload")
+    print(fname)
+    print(fpreload)
+    raw = mne.io.read_raw_brainvision(fname, preload = fpreload, verbose='ERROR')
+    raw.set_eeg_reference('average', projection=True)
+    F_eeg = raw.info['sfreq']
+    if Fs != F_eeg:
+        raw.filter(1,Fs/2,h_trans_bandwidth=2,verbose='ERROR')
+        raw.resample(Fs)
+        
+    raw.filter(low_freq,high_freq,h_trans_bandwidth=2,verbose='ERROR')
+    
+    print(ica)
+    if ica:
+        print('ICA is not set up properly, try to use the same shpere...etc files for everything')
+        ica = ICA(n_components = 10, random_state = 97)
+        ica.fit(raw)
+        ica.exclude = [0]
+        ica.apply(raw)
+    
+    chnames= raw.ch_names
+    time = raw.times
+    srate = raw.info['sfreq']
+    eeg = raw.get_data()[:63]
+    events = mne.events_from_annotations(raw,'auto',verbose='ERROR')[0][:].T[0][1:]
+    stimtrack = raw['Sound'][0][0]
+    button = raw['Button'][0][0]
+    diode = raw['Diode'][0][0]
+    #raw.drop_channels(['Sound','Diode','Button'])
+    
+    return chnames, time, srate, events, eeg, stimtrack, button, diode, raw.info
+
+def load_raw_eeg_data(name, session, Fs = 1000, low_freq = 1, high_freq = 20 , ica=False):
     """"
     Load eeg brainvision structure and returns data, channel names,
     sampling frequency and other useful data in a tuple
@@ -105,25 +163,17 @@ def load_eeg_data(name, session, Fs = 1000, low_freq = 1, high_freq = 20 , ica_d
         
     raw.filter(low_freq,high_freq,h_trans_bandwidth=2,verbose='ERROR')
     
-    
-    if ica_data:
+    print(ica)
+    if ica:
         print('ICA is not set up properly, try to use the same shpere...etc files for everything')
         ica = ICA(n_components = 10, random_state = 97)
         ica.fit(raw)
         ica.exclude = [0]
         ica.apply(raw)
     
-    chnames= raw.ch_names
-    time = raw.times
-    srate = raw.info['sfreq']
-    eeg = raw.get_data()[:63]
     events = mne.events_from_annotations(raw,'auto',verbose='ERROR')[0][:].T[0][1:]
-    stimtrack = raw['Sound'][0][0]
-    button = raw['Button'][0][0]
-    diode = raw['Diode'][0][0]
-    #raw.drop_channels(['Sound','Diode','Button'])
     
-    return chnames, time, srate, events, eeg, stimtrack, button, diode, raw.info
+    return raw, events
 
 
 def extract_duration_praat(fname):
@@ -283,7 +333,7 @@ def get_data_trial(name, session, n_trial, Fs):
     return stimtrack, eeg, audio, tactile, dirac, parameter, condition, timescale, info
     
 
-def Align_and_Save(name, session, F_resample, Fs=1000):
+def Align_and_Save(name, session, F_resample, Fs=1000, ica = False):
     """Function to load all the information regarding a single trial of a 
     single subject. 
 
@@ -313,8 +363,7 @@ def Align_and_Save(name, session, F_resample, Fs=1000):
     cond_count[6] = session *2 - 2
     cond_count[7] = session *2 - 2
     path_save = ospath.join(path_data, str(F_resample) + 'Hz')
-    chnames, time, srate, events, eeg, stimtrack, button, diode, info = load_eeg_data(name,session,Fs)
-    print(events)
+    chnames, time, srate, events, eeg, stimtrack, button, diode, info = load_eeg_data(name,session,Fs,ica=ica)
     chapters, parameters = param_load(name,session)
     start = 0
     end = 16
@@ -352,7 +401,8 @@ def Align_and_Save(name, session, F_resample, Fs=1000):
         print(delay)
         #eeg = np.roll(eeg,-delay,axis=1)[:,start_trial:end_trial]
         #eeg = eeg[:,start_trial+delay:end_trial+delay]
-        eeg_current = eeg[:,start_trial+delay:end_trial+delay]
+        #eeg_current = eeg[:,start_trial+delay:end_trial+delay]
+        eeg_current = eeg[:,start_trial:end_trial]
         
         trial = dict()
         audio, tactile, dirac, noise = stimuli_load(path_stimuli, chapter, part, F_resample)
@@ -363,6 +413,7 @@ def Align_and_Save(name, session, F_resample, Fs=1000):
         eeg_current = mne.filter.resample(eeg_current,up = F_resample, down = Fs)
         trial['condition'] = condition
         trial['response'] = eeg_current
+        trial['audio'] = audio
         trial['envelope'] = envelope
         trial['dirac'] = dirac[:len(envelope)]
         trial['syllables'] = syllables[:len(envelope)]
@@ -372,12 +423,15 @@ def Align_and_Save(name, session, F_resample, Fs=1000):
         count = cond_count[parameter]
         cond_count[parameter] += 1
         
+        '''
         if not condition['correlated']:
             filename = 'uncorrelated_' + name + '_' + str(F_resample) + 'Hz_' + str(count) + '_' +  '.pkl'  
         elif condition['type'] == 'audio-tactile':
             filename = 'audio_tactile_' + str(condition['delay']) + '_' + name + '_' + str(F_resample) + 'Hz_' + str(count) + '_' +  '.pkl'  
         else:
             filename = str(condition['type']) + '_' + name + '_' + str(F_resample) + 'Hz_' + str(count) + '_' +  '.pkl'  
+        '''
+        filename = get_name(parameter,name,count,F_resample,ica)
         file = ospath.join(path_save,filename)
         print(file)
     
@@ -386,31 +440,173 @@ def Align_and_Save(name, session, F_resample, Fs=1000):
         output.close()
         
         
-def get_name(parameter,name,count,Fs):
+def get_name(parameter,name,count,Fs,ica = False, erp = False):
     path_save = ospath.join(path_data, str(Fs) + 'Hz')
     condition = Conditions_EEG[parameter]
-    if not condition['correlated']:
-        filename = 'uncorrelated_' + name + '_' + str(Fs) + 'Hz_' + str(count) + '_' +  '.pkl'  
-    elif condition['type'] == 'audio-tactile':
-        filename = 'audio_tactile_' + str(condition['delay']) + '_' + name + '_' + str(Fs) + 'Hz_' + str(count) + '_' +  '.pkl'  
+    if not ica:
+        if not condition['correlated']:
+            filename = 'uncorrelated_' + name + '_' + str(Fs) + 'Hz_' + str(count) + '_' +  '.pkl'  
+        elif condition['type'] == 'audio-tactile':
+            filename = 'audio_tactile_' + str(condition['delay']) + '_' + name + '_' + str(Fs) + 'Hz_' + str(count) + '_' +  '.pkl'  
+        else:
+            filename = str(condition['type']) + '_' + name + '_' + str(Fs) + 'Hz_' + str(count) + '_' +  '.pkl'  
     else:
-        filename = str(condition['type']) + '_' + name + '_' + str(Fs) + 'Hz_' + str(count) + '_' +  '.pkl'  
+        if not condition['correlated']:
+            filename = 'uncorrelated_ica_' + name + '_' + str(Fs) + 'Hz_' + str(count) + '_' +  '.pkl'  
+        elif condition['type'] == 'audio-tactile':
+            filename = 'audio_tactile_ica_' + str(condition['delay']) + '_' + name + '_' + str(Fs) + 'Hz_' + str(count) + '_' +  '.pkl'  
+        else:
+            filename = str(condition['type']) + '_ica_' + name + '_' + str(Fs) + 'Hz_' + str(count) + '_' +  '.pkl'  
+    
+    if erp:
+        filename = 'erp_' + filename
     file = ospath.join(path_save,filename)
     
     return file
 
-def raw_info():
-    name = 'jon'
-    session = 1
-    fname = ospath.join(path_data,name,'Session ' + str(session),name + '.vhdr')
-    fpreload = ospath.join(path_data,name,'Session ' + str(session),name + "_preload")
-    raw = mne.io.read_raw_brainvision(fname, preload = fpreload, verbose='ERROR')
+def get_raw_info():
+    fname = ospath.join(path_data,'info')
+    raw = mne.io.read_raw_fif(fname)
     raw.set_eeg_reference('average', projection=True)
     return raw.info
+
+
+def Generate_Arrays(name_list,parameter_list,Fs,non_lin=1,ica=False,erp=False):
     
+    envelopes = []
+    diracs = []
+    syllables_list = []
+    tactiles = []
+    eegs = []
+    for name in name_list:
+        for i in range(0,2):
+            for parameter in parameter_list:  
+                try:
+                    file = get_name(parameter,name,i,Fs,ica=ica,erp=False)
+                    pkl_file = open(file, 'rb')
+                    trial = pickle.load(pkl_file)
+                    pkl_file.close()
+                    envelope = trial['envelope']
+                    envelope = np.power(envelope,non_lin)
+                    envelope -= np.min(envelope)
+                    envelope = np.reshape(scale(envelope.T),(len(envelope),1))
+                    dirac = trial['dirac']
+                    dirac = np.reshape(scale(dirac.T),(len(dirac),1))
+                    syllables = trial['syllables']
+                    syllables = np.reshape(scale(syllables.T),(len(syllables),1))
+                    tactile = trial['tactile']
+                    tactile = np.reshape(scale(tactile.T),(len(tactile),1))
+                    eeg = trial['response'].T
+                    envelopes.append(envelope)
+                    diracs.append(dirac[:len(envelope)])
+                    syllables_list.append(syllables[:len(envelope)])
+                    tactiles.append(tactile[:len(envelope)])
+                    eegs.append(eeg)
+                except:
+                    print('missing trial for condition number' + str(parameter) + ' for ' + name)
+    total_eeg =[]
+    total_eeg.append(eegs)
     
+    y1 = np.concatenate(np.concatenate(total_eeg,axis=0),axis=0)
+    #y2 = utils.compression_eeg(y1,comp_fact=1/3)
+    #y3 = mne.filter.filter_data(y1,Fs,1,4,verbose='ERROR')
+    #y4 = mne.filter.filter_data(y1,Fs,4,8,verbose='ERROR')
+    #y5 = mne.filter.filter_data(y1,Fs,8,16,verbose='ERROR')
+    #y6 = mne.filter.filter_data(y1,Fs,1,16,verbose='ERROR')
+    #y7 = mne.filter.filter_data(y1,Fs,l_freq=None,h_freq=50,verbose='ERROR')
+    y = y1
+
+
+    x1 = np.concatenate(envelopes)[:len(y)]
+    x2 = (np.concatenate(diracs)[:len(y)]/np.max(diracs[0])).astype(int)
+    x3 = (np.concatenate(syllables_list)[:len(y)]/np.max(syllables_list[0])).astype(int)
+    x4 = np.concatenate(tactiles)[:len(y)]
     
+    return y,x1,x2,x3,x4
     
+
+
+
+
+
+
+
+
+
+
+
+'''
+def Tactile_ERP(name_list, session, F_resample, Fs=1000, ica = False):
+    """Function to load all the information regarding a single trial of a 
+    single subject. 
+
+    Parameters
+    ----------
+    name : str
+        ID of the subject
+    session : int
+        session of recording = 1 or 2
+    Fs : float
+        Sampling Frequency of EEG, no resampling
+    F_resample : float
+        Sampling Frequency to work with and save the data as
+    -------
+    stimtrack : ndarray
+        The stimuli as recorded by the Amplifier, useful for alignment, test
+    audio : ndarray
+        The audio stimuli, useful to extract features
+    """
+    cond_count = dict()
+    cond_count[0] = session *2 - 2
+    cond_count[1] = session *2 - 2
+    cond_count[2] = session *2 - 2
+    cond_count[3] = session *2 - 2
+    cond_count[4] = session *2 - 2
+    cond_count[5] = session *2 - 2
+    cond_count[6] = session *2 - 2
+    cond_count[7] = session *2 - 2
+    name = name_list[0]
+    path_save = ospath.join(path_data, str(F_resample) + 'Hz')
+    for name in name_list:
+        raw, events = load_raw_eeg_data(name,session,F_resample,ica=ica)
+        chapters, parameters = param_load(name,session)
+        start = 0
+        end = 16
+        if name == 'deb':
+            start = 1
+        
+        for n_trial in range(start,end):
+            
+            chapter = chapters[n_trial//4]
+            part = n_trial%4 + 1
+            parameter = parameters[n_trial]
+            audio, tactile, dirac, noise = stimuli_load(path_stimuli, chapter, part, F_resample)
+            if name == 'deb':
+                start_trial = events[n_trial-1]
+                
+            else:    
+                start_trial = events[n_trial]
+            
+            length_trial = len(audio)
+            end_trial = start_trial + length_trial
+            condition = Conditions_EEG[parameter]
+            raw_current = raw.crop(start_trial/F_resample,end_trial/F_resample)
+            dirac = np.roll(dirac,int(condition['delay']/ 1000 * F_resample))
+
+
+            
+            
+            count = cond_count[parameter]
+            cond_count[parameter] += 1
     
+            filename = get_name(parameter,name,count,F_resample,ica,erp=True)
+            file = ospath.join(path_save,filename)
+            print(file)
+        
+            output = open(file, 'wb')
+            pickle.dump(trial, output)
+            output.close()
+    
+'''
     
     
