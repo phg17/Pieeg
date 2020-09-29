@@ -22,7 +22,7 @@ import os.path as ospath
 #import utils
 from .utils import lag_finder, AddNoisePostNorm, signal_envelope
 from sklearn.preprocessing import scale
-
+import matplotlib.pyplot as plt
 # MNE:
 import mne
 from mne.preprocessing.ica import ICA
@@ -94,9 +94,12 @@ def load_eeg_data(name, session, Fs = 1000, low_freq = 1, high_freq = 20 , ica=F
     chnames : list
     stimtrack, button Press, Diode : ndarray
     """
-    
-    fname = ospath.join(path_data,name,'Session ' + str(session),name + '.vhdr')
-    fpreload = ospath.join(path_data,name,'Session ' + str(session),name + "_preload")
+    if name == 'deb' and session==2:
+        fname = ospath.join(path_data,name,'Session ' + str(session),name + str(session) + '.vhdr')
+        fpreload = ospath.join(path_data,name,'Session ' + str(session),name + str(session) + "_preload") 
+    else:
+        fname = ospath.join(path_data,name,'Session ' + str(session),name + '.vhdr')
+        fpreload = ospath.join(path_data,name,'Session ' + str(session),name + "_preload")
     print(fname)
     print(fpreload)
     raw = mne.io.read_raw_brainvision(fname, preload = fpreload, verbose='ERROR')
@@ -113,7 +116,7 @@ def load_eeg_data(name, session, Fs = 1000, low_freq = 1, high_freq = 20 , ica=F
         print('ICA is not set up properly, try to use the same shpere...etc files for everything')
         ica = ICA(n_components = 10, random_state = 97)
         ica.fit(raw)
-        ica.exclude = [0]
+        ica.exclude = [0,1,2,3]
         ica.apply(raw)
     
     chnames= raw.ch_names
@@ -152,8 +155,12 @@ def load_raw_eeg_data(name, session, Fs = 1000, low_freq = 1, high_freq = 20 , i
     stimtrack, button Press, Diode : ndarray
     """
     
-    fname = ospath.join(path_data,name,'Session ' + str(session),name + '.vhdr')
-    fpreload = ospath.join(path_data,name,'Session ' + str(session),name + "_preload")
+    if name == 'deb' and session==2:
+        fname = ospath.join(path_data,name,'Session ' + str(session),name + str(session) + '.vhdr')
+        fpreload = ospath.join(path_data,name,'Session ' + str(session),name + str(session) + "_preload") 
+    else:
+        fname = ospath.join(path_data,name,'Session ' + str(session),name + '.vhdr')
+        fpreload = ospath.join(path_data,name,'Session ' + str(session),name + "_preload")
     raw = mne.io.read_raw_brainvision(fname, preload = fpreload, verbose='ERROR')
     raw.set_eeg_reference('average', projection=True)
     F_eeg = raw.info['sfreq']
@@ -210,8 +217,8 @@ def param_load(name, session):
     parameters : list
     """
     
-    fchapters = ospath.join(path_data,name,'Session ' + str(session),"chapters_1.npy")
-    fparameters = ospath.join(path_data,name,'Session ' + str(session),"parameters_1.npy")
+    fchapters = ospath.join(path_data,name,'Session ' + str(session),"chapters_" + str(session) + ".npy")
+    fparameters = ospath.join(path_data,name,'Session ' + str(session),"parameters_" + str(session) + ".npy")
     
     chapters = np.load(fchapters)
     parameters = np.flip(np.load(fparameters))
@@ -367,8 +374,11 @@ def Align_and_Save(name, session, F_resample, Fs=1000, ica = False):
     chapters, parameters = param_load(name,session)
     start = 0
     end = 16
-    if name == 'deb':
+    if name == 'deb' and session == 1:
         start = 1
+    if name == 'deb' and session == 2:
+        events = events[5:-1]
+        start = 3
     
     for n_trial in range(start,end):
         
@@ -376,8 +386,11 @@ def Align_and_Save(name, session, F_resample, Fs=1000, ica = False):
         part = n_trial%4 + 1
         parameter = parameters[n_trial]
         audio, tactile, dirac, noise = stimuli_load(path_stimuli, chapter, part, Fs)
-        if name == 'deb':
-            start_trial = events[n_trial-1]    
+        if name == 'deb' and session==1:
+            start_trial = events[n_trial-1]  
+            
+        elif name == 'deb' and session==2:
+            start_trial = events[n_trial-3] 
             
         else:    
             start_trial = events[n_trial]
@@ -423,14 +436,6 @@ def Align_and_Save(name, session, F_resample, Fs=1000, ica = False):
         count = cond_count[parameter]
         cond_count[parameter] += 1
         
-        '''
-        if not condition['correlated']:
-            filename = 'uncorrelated_' + name + '_' + str(F_resample) + 'Hz_' + str(count) + '_' +  '.pkl'  
-        elif condition['type'] == 'audio-tactile':
-            filename = 'audio_tactile_' + str(condition['delay']) + '_' + name + '_' + str(F_resample) + 'Hz_' + str(count) + '_' +  '.pkl'  
-        else:
-            filename = str(condition['type']) + '_' + name + '_' + str(F_resample) + 'Hz_' + str(count) + '_' +  '.pkl'  
-        '''
         filename = get_name(parameter,name,count,F_resample,ica)
         file = ospath.join(path_save,filename)
         print(file)
@@ -479,29 +484,38 @@ def Generate_Arrays(name_list,parameter_list,Fs,non_lin=1,ica=False,erp=False):
     tactiles = []
     eegs = []
     for name in name_list:
-        for i in range(0,2):
+        for i in range(4):
             for parameter in parameter_list:  
                 try:
                     file = get_name(parameter,name,i,Fs,ica=ica,erp=False)
                     pkl_file = open(file, 'rb')
                     trial = pickle.load(pkl_file)
                     pkl_file.close()
+                    
                     envelope = trial['envelope']
-                    envelope = np.power(envelope,non_lin)
-                    envelope -= np.min(envelope)
+                    #envelope = np.power(envelope,non_lin)
                     envelope = np.reshape(scale(envelope.T),(len(envelope),1))
+                    envelope -= np.min(envelope)
+                    envelope = np.power(envelope,non_lin)
+                    envelopes.append(envelope)
+
+                    
                     dirac = trial['dirac']
                     dirac = np.reshape(scale(dirac.T),(len(dirac),1))
+                    dirac /= np.max(dirac).astype(int)
+                    diracs.append(dirac[:len(envelope)])
+                    
                     syllables = trial['syllables']
                     syllables = np.reshape(scale(syllables.T),(len(syllables),1))
+                    syllables_list.append(syllables[:len(envelope)])
+                    
                     tactile = trial['tactile']
                     tactile = np.reshape(scale(tactile.T),(len(tactile),1))
-                    eeg = trial['response'].T
-                    envelopes.append(envelope)
-                    diracs.append(dirac[:len(envelope)])
-                    syllables_list.append(syllables[:len(envelope)])
                     tactiles.append(tactile[:len(envelope)])
+                    
+                    eeg = trial['response'].T                    
                     eegs.append(eeg)
+                    
                 except:
                     print('missing trial for condition number' + str(parameter) + ' for ' + name)
     total_eeg =[]
@@ -518,8 +532,10 @@ def Generate_Arrays(name_list,parameter_list,Fs,non_lin=1,ica=False,erp=False):
 
 
     x1 = np.concatenate(envelopes)[:len(y)]
-    x2 = (np.concatenate(diracs)[:len(y)]/np.max(diracs[0])).astype(int)
-    x3 = (np.concatenate(syllables_list)[:len(y)]/np.max(syllables_list[0])).astype(int)
+    #x2 = (np.concatenate(diracs)[:len(y)]/np.max(diracs[0])).astype(int)
+    #x3 = (np.concatenate(syllables_list)[:len(y)]/np.max(syllables_list[0])).astype(int)
+    x2 = (np.concatenate(diracs)[:len(y)])
+    x3 = (np.concatenate(syllables_list)[:len(y)])
     x4 = np.concatenate(tactiles)[:len(y)]
     
     return y,x1,x2,x3,x4

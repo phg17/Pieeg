@@ -289,7 +289,19 @@ class ERP_class():
                 self.mERP += w * eeg[self.window + i,:]
                 self.single_events.append(np.sum(np.abs(w * eeg[self.window + i]),axis=1))
             except:
-                print('out of window')
+                pass
+                
+    def inverse_weight_data(self,eeg,cont_stim):
+
+        for n_chan in range(63):
+            for t in range(len(cont_stim)):
+                try:
+                    w = eeg[t,n_chan]
+                    self.mERP[:,n_chan] += w * cont_stim[self.window + t,0]
+                except:
+                    pass
+        self.ERP = np.sum(self.mERP,axis=1)
+    
     
     def plot_simple(self):
         plt.figure()
@@ -306,8 +318,9 @@ class ERP_class():
         if not time:
             t = [np.argmin(self.ERP),np.argmax(self.ERP)]
         else:
-            t = [int(time[0]*Fs),int(time[1]*Fs)]
+            t = [int((time[0] - self.tmin)*Fs),int((time[1] - self.tmin)*Fs)]
         
+
         mne.viz.plot_topomap(self.mERP[t[0],:], raw_info, axes=ax1, cmap='RdBu_r', show=False) # Visualize topography max
         ax1.set_title('tlag={} ms'.format(int((t[0]/self.srate + self.tmin)*1000)))
         
