@@ -20,7 +20,7 @@ from scipy.io import loadmat
 from scipy.io.wavfile import read as wavread
 import os.path as ospath
 #import utils
-from .utils import lag_finder, AddNoisePostNorm, signal_envelope
+from .utils import lag_finder, AddNoisePostNorm, signal_envelope, create_events
 from sklearn.preprocessing import scale
 import matplotlib.pyplot as plt
 # MNE:
@@ -483,6 +483,7 @@ def Generate_Arrays(name_list,parameter_list,Fs,non_lin=1,ica=False,erp=False):
     syllables_list = []
     tactiles = []
     eegs = []
+    envelopes2 = []
     for name in name_list:
         for i in range(4):
             for parameter in parameter_list:  
@@ -493,20 +494,27 @@ def Generate_Arrays(name_list,parameter_list,Fs,non_lin=1,ica=False,erp=False):
                     pkl_file.close()
                     
                     envelope = trial['envelope']
-                    #envelope = np.power(envelope,non_lin)
+                    envelope2 = np.copy(envelope)
+                    envelope2 = np.reshape(scale(envelope2.T),(len(envelope2),1))
+                    envelopes2.append(envelope2)
+                    
+                    envelope -= np.min(envelope)
+                    envelope /= np.max(envelope)
+                    envelope = np.power(envelope,non_lin)
                     envelope = np.reshape(scale(envelope.T),(len(envelope),1))
                     envelope -= np.min(envelope)
-                    envelope = np.power(envelope,non_lin)
+                    #envelope = np.power(envelope,non_lin)
                     envelopes.append(envelope)
 
                     
                     dirac = trial['dirac']
                     dirac = np.reshape(scale(dirac.T),(len(dirac),1))
-                    dirac /= np.max(dirac).astype(int)
+                    dirac /= np.max(dirac)
                     diracs.append(dirac[:len(envelope)])
                     
                     syllables = trial['syllables']
                     syllables = np.reshape(scale(syllables.T),(len(syllables),1))
+                    syllables /= np.max(syllables)
                     syllables_list.append(syllables[:len(envelope)])
                     
                     tactile = trial['tactile']
@@ -534,11 +542,12 @@ def Generate_Arrays(name_list,parameter_list,Fs,non_lin=1,ica=False,erp=False):
     x1 = np.concatenate(envelopes)[:len(y)]
     #x2 = (np.concatenate(diracs)[:len(y)]/np.max(diracs[0])).astype(int)
     #x3 = (np.concatenate(syllables_list)[:len(y)]/np.max(syllables_list[0])).astype(int)
-    x2 = (np.concatenate(diracs)[:len(y)])
-    x3 = (np.concatenate(syllables_list)[:len(y)])
+    x2 = (np.concatenate(diracs)[:len(y)]).astype(int)
+    x3 = (np.concatenate(syllables_list)[:len(y)]).astype(int)
     x4 = np.concatenate(tactiles)[:len(y)]
+    x5 = np.concatenate(envelopes2)[:len(y)]
     
-    return y,x1,x2,x3,x4
+    return y,x1,x2,x3,x4,x5
     
 
 
@@ -550,28 +559,10 @@ def Generate_Arrays(name_list,parameter_list,Fs,non_lin=1,ica=False,erp=False):
 
 
 
+#%%
 
-'''
 def Tactile_ERP(name_list, session, F_resample, Fs=1000, ica = False):
-    """Function to load all the information regarding a single trial of a 
-    single subject. 
 
-    Parameters
-    ----------
-    name : str
-        ID of the subject
-    session : int
-        session of recording = 1 or 2
-    Fs : float
-        Sampling Frequency of EEG, no resampling
-    F_resample : float
-        Sampling Frequency to work with and save the data as
-    -------
-    stimtrack : ndarray
-        The stimuli as recorded by the Amplifier, useful for alignment, test
-    audio : ndarray
-        The audio stimuli, useful to extract features
-    """
     cond_count = dict()
     cond_count[0] = session *2 - 2
     cond_count[1] = session *2 - 2
@@ -586,8 +577,8 @@ def Tactile_ERP(name_list, session, F_resample, Fs=1000, ica = False):
     for name in name_list:
         raw, events = load_raw_eeg_data(name,session,F_resample,ica=ica)
         chapters, parameters = param_load(name,session)
-        start = 0
-        end = 16
+        start = 3
+        end = 4
         if name == 'deb':
             start = 1
         
@@ -603,26 +594,33 @@ def Tactile_ERP(name_list, session, F_resample, Fs=1000, ica = False):
             else:    
                 start_trial = events[n_trial]
             
-            length_trial = len(audio)
-            end_trial = start_trial + length_trial
+            #length_trial = len(audio)
+            #end_trial = start_trial + length_trial
             condition = Conditions_EEG[parameter]
-            raw_current = raw.crop(start_trial/F_resample,end_trial/F_resample)
+            #raw_current = raw.crop(start_trial/F_resample,end_trial/F_resample)
             dirac = np.roll(dirac,int(condition['delay']/ 1000 * F_resample))
-
+            
+            eve = create_events(dirac) 
+            eve[:,0] += start_trial + raw.first_samp
+            epochs = mne.Epochs(raw, eve, tmin=-1., tmax=1.,event_id={'pulse':1} ,preload=False, reject=None)
+            evoked = epochs['pulse'].average()
+            print(condition)
+    return evoked, epochs
 
             
             
-            count = cond_count[parameter]
-            cond_count[parameter] += 1
+            #count = cond_count[parameter]
+            #cond_count[parameter] += 1
     
-            filename = get_name(parameter,name,count,F_resample,ica,erp=True)
-            file = ospath.join(path_save,filename)
-            print(file)
+            #filename = get_name(parameter,name,count,F_resample,ica,erp=True)
+            #file = ospath.join(path_save,filename)
+            #print(file)
         
-            output = open(file, 'wb')
-            pickle.dump(trial, output)
-            output.close()
+            #output = open(file, 'wb')
+            #pickle.dump(trial, output)
+            #output.close()
+            
     
-'''
+
     
     
