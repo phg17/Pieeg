@@ -118,6 +118,9 @@ def load_eeg_data(name, session, Fs = 1000, low_freq = 1, high_freq = 20 , ica=F
         ica.fit(raw)
         ica.exclude = [0,1,2,3]
         ica.apply(raw)
+        #plt.figure()
+        #ica.plot_properties()
+        #ica.plot_overlay(raw, exclude=[0], picks='eeg')
     
     chnames= raw.ch_names
     time = raw.times
@@ -379,6 +382,8 @@ def Align_and_Save(name, session, F_resample, Fs=1000, ica = False):
     if name == 'deb' and session == 2:
         events = events[5:-1]
         start = 3
+    if name == 'yr' and session == 1:
+        end = 13
     
     for n_trial in range(start,end):
         
@@ -471,8 +476,9 @@ def get_name(parameter,name,count,Fs,ica = False, erp = False):
 
 def get_raw_info():
     fname = ospath.join(path_data,'info')
-    raw = mne.io.read_raw_fif(fname)
+    raw = mne.io.read_raw_fif(fname, preload=True)
     raw.set_eeg_reference('average', projection=True)
+    raw.drop_channels(['Sound','Diode','Button'])
     return raw.info
 
 
@@ -559,26 +565,28 @@ def Generate_Arrays(name_list,parameter_list,Fs,non_lin=1,ica=False,erp=False):
 
 
 
-#%%
 
-def Tactile_ERP(name_list, session, F_resample, Fs=1000, ica = False):
+def Tactile_ERP(name_list, session, F_resample, Fs=1000, t_min = -1., t_max = 1., ica = False):
 
-    cond_count = dict()
-    cond_count[0] = session *2 - 2
-    cond_count[1] = session *2 - 2
-    cond_count[2] = session *2 - 2
-    cond_count[3] = session *2 - 2
-    cond_count[4] = session *2 - 2
-    cond_count[5] = session *2 - 2
-    cond_count[6] = session *2 - 2
-    cond_count[7] = session *2 - 2
+
+    
+    epochs_dict = dict()
+    evoked_dict = dict()
+    for i in range(8):
+        epochs_dict[i] = []
+        evoked_dict[i] = []
+    
     name = name_list[0]
     path_save = ospath.join(path_data, str(F_resample) + 'Hz')
     for name in name_list:
+        events_dict = dict()
+        for i in range(8):
+            events_dict[i] = np.asarray([[],[],[]]).T
+            
         raw, events = load_raw_eeg_data(name,session,F_resample,ica=ica)
         chapters, parameters = param_load(name,session)
-        start = 3
-        end = 4
+        start = 0
+        end = 16
         if name == 'deb':
             start = 1
         
@@ -602,23 +610,23 @@ def Tactile_ERP(name_list, session, F_resample, Fs=1000, ica = False):
             
             eve = create_events(dirac) 
             eve[:,0] += start_trial + raw.first_samp
+            events_dict[parameter] = np.vstack([events_dict[parameter],eve]).astype(int)
+        
+        for i in range(8):
+            epochs_dict[i].append(mne.Epochs(raw,events_dict[i],tmin=t_min,tmax=t_max,event_id={'pulse':1},preload = False,reject = None))
+    for i in range(8):
+        epochs_dict[i] = mne.concatenate_epochs(epochs_dict[i])
+        epochs_dict[i].drop_channels(['Sound','Diode','Button'])
+        evoked_dict[i].append(epochs_dict[i].average())
+    return epochs_dict, evoked_dict
+
+'''            
             epochs = mne.Epochs(raw, eve, tmin=-1., tmax=1.,event_id={'pulse':1} ,preload=False, reject=None)
             evoked = epochs['pulse'].average()
             print(condition)
     return evoked, epochs
 
-            
-            
-            #count = cond_count[parameter]
-            #cond_count[parameter] += 1
-    
-            #filename = get_name(parameter,name,count,F_resample,ica,erp=True)
-            #file = ospath.join(path_save,filename)
-            #print(file)
-        
-            #output = open(file, 'wb')
-            #pickle.dump(trial, output)
-            #output.close()
+'''            
             
     
 

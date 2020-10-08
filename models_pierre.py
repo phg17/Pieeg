@@ -19,6 +19,7 @@ from scipy import linalg
 #import dtw
 import mne
 from sklearn.linear_model import LogisticRegression
+#import pyriemann
 
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
 logging.basicConfig(level=logging.WARNING)
@@ -257,6 +258,7 @@ class ERP_class():
         self.ERP =np.zeros(len(self.window))
         self.mERP =np.zeros([len(self.window),n_chan])
         self.single_events = []
+        self.single_events_mult = []
         self.peak_time = None
         self.peak_arg = None
         
@@ -288,6 +290,7 @@ class ERP_class():
                 self.ERP += np.sum((w * eeg[self.window + i]),axis=1)
                 self.mERP += w * eeg[self.window + i,:]
                 self.single_events.append(np.sum(np.abs(w * eeg[self.window + i]),axis=1))
+                self.single_events_mult.append((w * eeg[self.window + i]))
             except:
                 pass
                 
