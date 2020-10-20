@@ -28,6 +28,15 @@ import mne
 from mne.preprocessing.ica import ICA
 
 
+File_ref = dict()
+File_ref['al'] = ['al', 'al_2']
+File_ref['yr'] = ['yr', 'yr_2']
+File_ref['phil'] = ['phil_1', '']
+File_ref['jon'] = ['jon', 'jon_2']
+File_ref['deb'] = ['deb', 'deb2']
+
+
+
 Conditions_EEG = dict()
 Conditions_EEG[0] = {'type':'audio','delay':0,'correlated':True} #audio only
 Conditions_EEG[1] = {'type':'tactile','delay':0,'correlated':True} #tactile only
@@ -71,6 +80,11 @@ def load_mat(fname):
     return data
 
 
+def get_raw_name(name, session):
+    fname = ospath.join(path_data,name,'Session ' + str(session), File_ref[name][session-1] + '.vhdr')
+    fpreload = ospath.join(path_data,name,'Session ' + str(session), File_ref[name][session-1] + "_preload")
+    return fname, fpreload
+
 def load_eeg_data(name, session, Fs = 1000, low_freq = 1, high_freq = 20 , ica=False):
     """"
     Load eeg brainvision structure and returns data, channel names,
@@ -94,12 +108,14 @@ def load_eeg_data(name, session, Fs = 1000, low_freq = 1, high_freq = 20 , ica=F
     chnames : list
     stimtrack, button Press, Diode : ndarray
     """
-    if name == 'deb' and session==2:
-        fname = ospath.join(path_data,name,'Session ' + str(session),name + str(session) + '.vhdr')
-        fpreload = ospath.join(path_data,name,'Session ' + str(session),name + str(session) + "_preload") 
-    else:
-        fname = ospath.join(path_data,name,'Session ' + str(session),name + '.vhdr')
-        fpreload = ospath.join(path_data,name,'Session ' + str(session),name + "_preload")
+    #if name == 'deb' and session==2:
+    #    fname = ospath.join(path_data,name,'Session ' + str(session),name + str(session) + '.vhdr')
+    #    fpreload = ospath.join(path_data,name,'Session ' + str(session),name + str(session) + "_preload") 
+    #else:
+    #    fname = ospath.join(path_data,name,'Session ' + str(session),name + '.vhdr')
+    #    fpreload = ospath.join(path_data,name,'Session ' + str(session),name + "_preload")
+    
+    fname, fpreload = get_raw_name(name,session)
     print(fname)
     print(fpreload)
     raw = mne.io.read_raw_brainvision(fname, preload = fpreload, verbose='ERROR')
@@ -158,12 +174,7 @@ def load_raw_eeg_data(name, session, Fs = 1000, low_freq = 1, high_freq = 20 , i
     stimtrack, button Press, Diode : ndarray
     """
     
-    if name == 'deb' and session==2:
-        fname = ospath.join(path_data,name,'Session ' + str(session),name + str(session) + '.vhdr')
-        fpreload = ospath.join(path_data,name,'Session ' + str(session),name + str(session) + "_preload") 
-    else:
-        fname = ospath.join(path_data,name,'Session ' + str(session),name + '.vhdr')
-        fpreload = ospath.join(path_data,name,'Session ' + str(session),name + "_preload")
+    fname, fpreload = get_raw_name(name,session)
     raw = mne.io.read_raw_brainvision(fname, preload = fpreload, verbose='ERROR')
     raw.set_eeg_reference('average', projection=True)
     F_eeg = raw.info['sfreq']
@@ -372,6 +383,7 @@ def Align_and_Save(name, session, F_resample, Fs=1000, ica = False):
     cond_count[5] = session *2 - 2
     cond_count[6] = session *2 - 2
     cond_count[7] = session *2 - 2
+    
     path_save = ospath.join(path_data, str(F_resample) + 'Hz')
     chnames, time, srate, events, eeg, stimtrack, button, diode, info = load_eeg_data(name,session,Fs,ica=ica)
     chapters, parameters = param_load(name,session)
@@ -566,7 +578,7 @@ def Generate_Arrays(name_list,parameter_list,Fs,non_lin=1,ica=False,erp=False):
 
 
 
-def Tactile_ERP(name_list, session, F_resample, Fs=1000, t_min = -1., t_max = 1., ica = False):
+def Tactile_ERP(name_list, session, F_resample, Fs=1000, t_min = -1., t_max = 1., ref_epoch = 'tactile', ica = False):
 
 
     
@@ -589,6 +601,8 @@ def Tactile_ERP(name_list, session, F_resample, Fs=1000, t_min = -1., t_max = 1.
         end = 16
         if name == 'deb':
             start = 1
+        if name == 'yr':
+            end = 13
         
         for n_trial in range(start,end):
             
@@ -606,15 +620,19 @@ def Tactile_ERP(name_list, session, F_resample, Fs=1000, t_min = -1., t_max = 1.
             #end_trial = start_trial + length_trial
             condition = Conditions_EEG[parameter]
             #raw_current = raw.crop(start_trial/F_resample,end_trial/F_resample)
-            dirac = np.roll(dirac,int(condition['delay']/ 1000 * F_resample))
+            if ref_epoch == 'tactile':
+                dirac = np.roll(dirac,int(condition['delay']/ 1000 * F_resample))
+
             
             eve = create_events(dirac) 
             eve[:,0] += start_trial + raw.first_samp
             events_dict[parameter] = np.vstack([events_dict[parameter],eve]).astype(int)
         
         for i in range(8):
-            epochs_dict[i].append(mne.Epochs(raw,events_dict[i],tmin=t_min,tmax=t_max,event_id={'pulse':1},preload = False,reject = None))
+            print(name,i)
+            epochs_dict[i].append(mne.Epochs(raw,events_dict[i],tmin=t_min,tmax=t_max,event_id={'pulse':1},preload = False,reject = None, verbose='ERROR'))
     for i in range(8):
+        print(name,i)
         epochs_dict[i] = mne.concatenate_epochs(epochs_dict[i])
         epochs_dict[i].drop_channels(['Sound','Diode','Button'])
         evoked_dict[i].append(epochs_dict[i].average())
