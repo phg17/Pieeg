@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 import h5py # for mat file version >= 7.3
 from scipy import signal as scisig
-from scipy.io import loadmat
+from scipy.io import loadmat, savemat
 from scipy.io.wavfile import read as wavread
 import os.path as ospath
 #import utils
@@ -31,7 +31,7 @@ from mne.preprocessing.ica import ICA
 File_ref = dict()
 File_ref['al'] = ['al', 'al_2']
 File_ref['yr'] = ['yr', 'yr_2']
-File_ref['phil'] = ['phil_1', '']
+File_ref['phil'] = ['phil_1', 'phil_2']
 File_ref['jon'] = ['jon', 'jon_2']
 File_ref['deb'] = ['deb', 'deb2']
 
@@ -152,8 +152,7 @@ def load_eeg_data(name, session, Fs = 1000, low_freq = 1, high_freq = 20 , ica=F
 
 def load_raw_eeg_data(name, session, Fs = 1000, low_freq = 1, high_freq = 20 , ica=False):
     """"
-    Load eeg brainvision structure and returns data, channel names,
-    sampling frequency and other useful data in a tuple
+    Load eeg brainvision structure and returns raw data
 
     Parameters
     ----------
@@ -196,6 +195,110 @@ def load_raw_eeg_data(name, session, Fs = 1000, low_freq = 1, high_freq = 20 , i
     
     return raw, events
 
+
+
+def save_raw_data(name, session, cond_list, Fs = 1000):
+
+    
+    F_resample = 38000
+    cond_count = dict()
+    cond_count[0] = session *2 - 2
+    cond_count[1] = session *2 - 2
+    cond_count[2] = session *2 - 2
+    cond_count[3] = session *2 - 2
+    cond_count[4] = session *2 - 2
+    cond_count[5] = session *2 - 2
+    cond_count[6] = session *2 - 2
+    cond_count[7] = session *2 - 2
+    
+    fname, fpreload = get_raw_name(name,session)
+    print(fname)
+    print(fpreload)
+    raw = mne.io.read_raw_brainvision(fname, preload = fpreload, verbose='ERROR')
+    raw.set_eeg_reference('average', projection=True)
+    path_save = ospath.join(path_data, 'Raw')
+    
+    events = mne.events_from_annotations(raw,'auto',verbose='ERROR')[0][:].T[0][1:]
+    stimtrack = raw['Sound'][0][0]
+    chapters, parameters = param_load(name,session)
+    
+    start = 0
+    end = 16
+    if name == 'deb' and session == 1:
+        start = 1
+    if name == 'deb' and session == 2:
+        events = events[5:-1]
+        start = 3
+    if name == 'yr' and session == 1:
+        end = 13
+    
+    for n_trial in range(start,end):
+        
+        chapter = chapters[n_trial//4]
+        part = n_trial%4 + 1
+        parameter = parameters[n_trial]
+        
+        if parameter in cond_list:
+            audio, tactile, dirac, noise = stimuli_load(path_stimuli, chapter, part, Fs=1000)
+            if name == 'deb' and session==1:
+                start_trial = events[n_trial-1]  
+                
+            elif name == 'deb' and session==2:
+                start_trial = events[n_trial-3] 
+                
+            else:    
+                start_trial = events[n_trial]
+            
+            length_trial = len(audio)
+            end_trial = start_trial + length_trial
+            raw_current = raw.copy().crop(start_trial/1000,end_trial/1000)
+            
+            #stimtrack_current = stimtrack[start_trial:end_trial]
+            stimtrack_current = raw_current['Sound'][0][0]
+            condition = Conditions_EEG[parameter]
+            tactile = np.roll(tactile,int(condition['delay']/ 1000 * Fs))
+            dirac = np.roll(dirac,int(condition['delay']/ 1000 * Fs))
+            audio_noise = AddNoisePostNorm(audio,noise,-2)
+            print(condition)
+            if condition['type'] == 'tactile':
+                delay = lag_finder(stimtrack_current,tactile,Fs)
+            elif condition['type'] == 'audio' or not condition['correlated']:
+                delay = lag_finder(stimtrack_current,audio_noise,Fs)
+            else:
+                delay = lag_finder(stimtrack_current,audio_noise + tactile*2000,Fs)
+            print(delay)
+    
+            
+            audio, tactile, dirac, noise = stimuli_load(path_stimuli, chapter, part, F_resample)
+            syllables = np.copy(dirac)
+            dirac = np.roll(dirac,int(condition['delay']/ 1000 * F_resample))
+    
+            
+            count = cond_count[parameter]
+            cond_count[parameter] += 1
+            
+    
+            filename = save_raw_name(name,parameter,count)
+            raw_file = filename + '_raw.fif'
+            stimuli_file = filename + '_stimuli.mat'
+            stimuli = dict()
+            stimuli['syllables'] = syllables
+            stimuli['dirac'] = dirac
+            stimuli['sound'] = audio
+            stimuli['Fs'] = F_resample
+            savemat(ospath.join(path_save,stimuli_file),stimuli)
+            raw_current.save(ospath.join(path_save,raw_file))
+        
+def save_raw_name(name, parameter, count):
+    if parameter == 0:
+        filename = 'audio_' + name + '_' + str(count)
+    elif parameter == 1:
+        filename = 'tactile_' + name + '_' + str(count)
+    elif parameter == 7:
+        filename = 'sham_' + name + '_' + str(count)
+    else:
+        filename = 'AT_' + str(Conditions_EEG[parameter]['delay']) + '_' + name + '_' + str(count)
+    return filename
 
 def extract_duration_praat(fname):
     """Function to get the duration from a file generated by PrAat software,
