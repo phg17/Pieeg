@@ -85,7 +85,7 @@ def get_raw_name(name, session):
     fpreload = ospath.join(path_data,name,'Session ' + str(session), File_ref[name][session-1] + "_preload")
     return fname, fpreload
 
-def load_eeg_data(name, session, Fs = 1000, low_freq = 1, high_freq = 20 , ica=False):
+def load_eeg_data(name, session, Fs = 1000, low_freq = 1, high_freq = 20 , ica=False, bad = True):
     """"
     Load eeg brainvision structure and returns data, channel names,
     sampling frequency and other useful data in a tuple
@@ -127,12 +127,16 @@ def load_eeg_data(name, session, Fs = 1000, low_freq = 1, high_freq = 20 , ica=F
         
     raw.filter(low_freq,high_freq,h_trans_bandwidth=2,verbose='ERROR')
     
-    print(ica)
+    if bad:
+        raw.info['bads'] = ['Fp1', 'Fp2', 'AF8', 'AFz']
+        raw.interpolate_bads()
+    
+
     if ica:
         print('ICA is not set up properly, try to use the same shpere...etc files for everything')
         ica = ICA(n_components = 10, random_state = 97)
         ica.fit(raw)
-        ica.exclude = [0,1,2,3]
+        ica.exclude = [0]
         ica.apply(raw)
         #plt.figure()
         #ica.plot_properties()
@@ -692,7 +696,7 @@ def Tactile_ERP(name_list, session, F_resample, Fs=1000, t_min = -1., t_max = 1.
         evoked_dict[i] = []
     
     name = name_list[0]
-    path_save = ospath.join(path_data, str(F_resample) + 'Hz')
+    
     for name in name_list:
         events_dict = dict()
         for i in range(8):

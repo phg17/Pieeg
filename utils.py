@@ -115,6 +115,9 @@ def lag_matrix(data, lag_samples=(-1, 0, 1), filling=np.nan, drop_missing=False)
     #return dframe.loc[:, ::-1].get_values()
     
     
+
+    
+    
     
 def lag_span(tmin, tmax, srate=125):
     """Create an array of lags spanning the time window [tmin, tmax].
