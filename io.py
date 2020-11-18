@@ -26,6 +26,7 @@ import matplotlib.pyplot as plt
 # MNE:
 import mne
 from mne.preprocessing.ica import ICA
+from mne.filter import detrend as detrend_data
 
 
 File_ref = dict()
@@ -34,6 +35,8 @@ File_ref['yr'] = ['yr', 'yr_2']
 File_ref['phil'] = ['phil_1', 'phil_2']
 File_ref['jon'] = ['jon', 'jon_2']
 File_ref['deb'] = ['deb', 'deb2']
+File_ref['chap'] = ['chap_1', 'chap_2']
+File_ref['alio'] = ['alio_1', 'alio_2']
 
 
 
@@ -85,7 +88,7 @@ def get_raw_name(name, session):
     fpreload = ospath.join(path_data,name,'Session ' + str(session), File_ref[name][session-1] + "_preload")
     return fname, fpreload
 
-def load_eeg_data(name, session, Fs = 1000, low_freq = 1, high_freq = 20 , ica=False, bad = True):
+def load_eeg_data(name, session, Fs = 1000, low_freq = 1, high_freq = 40 , ica=False, bad = True, detrend = None):
     """"
     Load eeg brainvision structure and returns data, channel names,
     sampling frequency and other useful data in a tuple
@@ -120,6 +123,12 @@ def load_eeg_data(name, session, Fs = 1000, low_freq = 1, high_freq = 20 , ica=F
     print(fpreload)
     raw = mne.io.read_raw_brainvision(fname, preload = fpreload, verbose='ERROR')
     raw.set_eeg_reference('average', projection=True)
+    if detrend:
+        print('Detrending')
+        raw_detrend = mne.io.RawArray(np.vstack([detrend_data(raw.get_data()[0:63],1,axis=1),raw.get_data()[63:]]),raw.info)
+        raw = raw_detrend
+    
+    
     F_eeg = raw.info['sfreq']
     if Fs != F_eeg:
         raw.filter(1,Fs/2,h_trans_bandwidth=2,verbose='ERROR')
@@ -128,7 +137,7 @@ def load_eeg_data(name, session, Fs = 1000, low_freq = 1, high_freq = 20 , ica=F
     raw.filter(low_freq,high_freq,h_trans_bandwidth=2,verbose='ERROR')
     
     if bad:
-        raw.info['bads'] = ['Fp1', 'Fp2', 'AF8', 'AFz']
+        raw.info['bads'] = ['Fp1', 'Fp2', 'AF8', 'AFz','CPz']
         raw.interpolate_bads()
     
 
@@ -461,7 +470,7 @@ def get_data_trial(name, session, n_trial, Fs):
     return stimtrack, eeg, audio, tactile, dirac, parameter, condition, timescale, info
     
 
-def Align_and_Save(name, session, F_resample, Fs=1000, ica = False):
+def Align_and_Save(name, session, F_resample, Fs=1000, ica = False,detrend=None):
     """Function to load all the information regarding a single trial of a 
     single subject. 
 
@@ -492,7 +501,7 @@ def Align_and_Save(name, session, F_resample, Fs=1000, ica = False):
     cond_count[7] = session *2 - 2
     
     path_save = ospath.join(path_data, str(F_resample) + 'Hz')
-    chnames, time, srate, events, eeg, stimtrack, button, diode, info = load_eeg_data(name,session,Fs,ica=ica)
+    chnames, time, srate, events, eeg, stimtrack, button, diode, info = load_eeg_data(name,session,Fs,ica=ica,detrend=detrend)
     chapters, parameters = param_load(name,session)
     start = 0
     end = 16
@@ -601,7 +610,7 @@ def get_raw_info():
     return raw.info
 
 
-def Generate_Arrays(name_list,parameter_list,Fs,non_lin=1,ica=False,erp=False):
+def Generate_Arrays(name_list,parameter_list,Fs,non_lin=1,ica=False,erp=False,concatenate=True):
     
     envelopes = []
     diracs = []
@@ -653,24 +662,31 @@ def Generate_Arrays(name_list,parameter_list,Fs,non_lin=1,ica=False,erp=False):
                     print('missing trial for condition number' + str(parameter) + ' for ' + name)
     total_eeg =[]
     total_eeg.append(eegs)
-    
-    y1 = np.concatenate(np.concatenate(total_eeg,axis=0),axis=0)
-    #y2 = utils.compression_eeg(y1,comp_fact=1/3)
-    #y3 = mne.filter.filter_data(y1,Fs,1,4,verbose='ERROR')
-    #y4 = mne.filter.filter_data(y1,Fs,4,8,verbose='ERROR')
-    #y5 = mne.filter.filter_data(y1,Fs,8,16,verbose='ERROR')
-    #y6 = mne.filter.filter_data(y1,Fs,1,16,verbose='ERROR')
-    #y7 = mne.filter.filter_data(y1,Fs,l_freq=None,h_freq=50,verbose='ERROR')
-    y = y1
+    if concatenate:
+        y1 = np.concatenate(np.concatenate(total_eeg,axis=0),axis=0)
+        #y2 = utils.compression_eeg(y1,comp_fact=1/3)
+        #y3 = mne.filter.filter_data(y1,Fs,1,4,verbose='ERROR')
+        #y4 = mne.filter.filter_data(y1,Fs,4,8,verbose='ERROR')
+        #y5 = mne.filter.filter_data(y1,Fs,8,16,verbose='ERROR')
+        #y6 = mne.filter.filter_data(y1,Fs,1,16,verbose='ERROR')
+        #y7 = mne.filter.filter_data(y1,Fs,l_freq=None,h_freq=50,verbose='ERROR')
+        y = y1
 
 
-    x1 = np.concatenate(envelopes)[:len(y)]
-    #x2 = (np.concatenate(diracs)[:len(y)]/np.max(diracs[0])).astype(int)
-    #x3 = (np.concatenate(syllables_list)[:len(y)]/np.max(syllables_list[0])).astype(int)
-    x2 = (np.concatenate(diracs)[:len(y)]).astype(int)
-    x3 = (np.concatenate(syllables_list)[:len(y)]).astype(int)
-    x4 = np.concatenate(tactiles)[:len(y)]
-    x5 = np.concatenate(envelopes2)[:len(y)]
+        x1 = np.concatenate(envelopes)[:len(y)]
+        #x2 = (np.concatenate(diracs)[:len(y)]/np.max(diracs[0])).astype(int)
+        #x3 = (np.concatenate(syllables_list)[:len(y)]/np.max(syllables_list[0])).astype(int)
+        x2 = (np.concatenate(diracs)[:len(y)]).astype(int)
+        x3 = (np.concatenate(syllables_list)[:len(y)]).astype(int)
+        x4 = np.concatenate(tactiles)[:len(y)]
+        x5 = np.concatenate(envelopes2)[:len(y)]
+    else:
+        y = total_eeg[0]
+        x1 = envelopes
+        x2 = diracs
+        x3 = syllables_list
+        x4 = tactiles
+        x5 = envelopes2
     
     return y,x1,x2,x3,x4,x5
     
@@ -685,7 +701,7 @@ def Generate_Arrays(name_list,parameter_list,Fs,non_lin=1,ica=False,erp=False):
 
 
 
-def Tactile_ERP(name_list, session, F_resample, Fs=1000, t_min = -1., t_max = 1., ref_epoch = 'tactile', ica = False):
+def Tactile_ERP(name_list, session, F_resample, Fs=1000, t_min = -1., t_max = 1., ref_epoch = 'tactile', ica = False, detrend = None):
 
 
     
@@ -737,7 +753,7 @@ def Tactile_ERP(name_list, session, F_resample, Fs=1000, t_min = -1., t_max = 1.
         
         for i in range(8):
             print(name,i)
-            epochs_dict[i].append(mne.Epochs(raw,events_dict[i],tmin=t_min,tmax=t_max,event_id={'pulse':1},preload = False,reject = None, verbose='ERROR'))
+            epochs_dict[i].append(mne.Epochs(raw,events_dict[i],tmin=t_min,tmax=t_max,event_id={'pulse':1}, detrend=detrend,preload = False,reject = None, verbose='ERROR'))
     for i in range(8):
         print(name,i)
         epochs_dict[i] = mne.concatenate_epochs(epochs_dict[i])
