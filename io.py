@@ -37,6 +37,8 @@ File_ref['jon'] = ['jon', 'jon_2']
 File_ref['deb'] = ['deb', 'deb2']
 File_ref['chap'] = ['chap_1', 'chap_2']
 File_ref['alio'] = ['alio_1', 'alio_2']
+File_ref['sep'] = ['sep_1', 'sep_2']
+File_ref['lad'] = [['lad_1','lad_1_1'], 'lad_2']
 
 
 
@@ -53,7 +55,7 @@ Conditions_EEG[7] = {'type':'audio-tactile','delay':0,'correlated':False} #uncor
 Bad_trial = dict()
 Bad_trial['deb1'] = True
 
-
+path_behav = '/home/phg17/Documents/Behavioural Experiment/data/Behavioural_2' 
 path_data = '/home/phg17/Documents/EEG Experiment/Data Analysis/Data'
 path_stimuli = '/home/phg17/Documents/EEG Experiment/Stimuli_Odin/Stimuli' 
 
@@ -84,8 +86,16 @@ def load_mat(fname):
 
 
 def get_raw_name(name, session):
-    fname = ospath.join(path_data,name,'Session ' + str(session), File_ref[name][session-1] + '.vhdr')
-    fpreload = ospath.join(path_data,name,'Session ' + str(session), File_ref[name][session-1] + "_preload")
+    name_eeg = File_ref[name][session-1]
+    if isinstance(name_eeg, list):
+        fname = []
+        fpreload = []
+        for part in name_eeg:
+            fname.append(ospath.join(path_data,name,'Session ' + str(session), part + '.vhdr'))
+            fpreload.append(ospath.join(path_data,name,'Session ' + str(session), part + "_preload"))
+    else:
+        fname = ospath.join(path_data,name,'Session ' + str(session), name_eeg + '.vhdr')
+        fpreload = ospath.join(path_data,name,'Session ' + str(session), name_eeg + "_preload")
     return fname, fpreload
 
 def load_eeg_data(name, session, Fs = 1000, low_freq = 1, high_freq = 30 , ica=False, bad = True, detrend = None):
@@ -121,8 +131,26 @@ def load_eeg_data(name, session, Fs = 1000, low_freq = 1, high_freq = 30 , ica=F
     fname, fpreload = get_raw_name(name,session)
     print(fname)
     print(fpreload)
-    raw = mne.io.read_raw_brainvision(fname, preload = fpreload, verbose='ERROR')
-    events = mne.events_from_annotations(raw,'auto',verbose='ERROR')[0][:].T[0][1:]
+    if isinstance(fname, list):
+        print('Retrieved in ', str(len(fname)),' parts')
+        raws = []
+
+        for (name,preload) in zip(fname,fpreload):
+            raw_tmp = mne.io.read_raw_brainvision(name, preload = preload, verbose='ERROR')
+            raws.append(raw_tmp)
+        raw = mne.concatenate_raws(raws)
+        annot_tot = raw.annotations
+        idx = []
+        for i in range(len(annot_tot)):
+            if annot_tot[i]['description'] != 'Response/R  3':
+                idx.append(i)
+        annot_tot.delete(idx = idx)
+        events = (annot_tot.onset * 1000).astype(int)[-16:]
+        #events = mne.events_from_annotations(raw,'auto',verbose='ERROR')[0][:].T[0][1:]
+    else:
+        print('Retrieved in one part')
+        raw = mne.io.read_raw_brainvision(fname, preload = fpreload, verbose='ERROR')
+        events = mne.events_from_annotations(raw,'auto',verbose='ERROR')[0][:].T[0][1:]
     raw.set_eeg_reference('average', projection=True)
     if detrend:
         print('Detrending')
@@ -138,7 +166,7 @@ def load_eeg_data(name, session, Fs = 1000, low_freq = 1, high_freq = 30 , ica=F
     raw.filter(low_freq,high_freq,h_trans_bandwidth=2,verbose='ERROR')
     
     if bad:
-        raw.info['bads'] = ['Fp1', 'Fp2', 'AF8', 'AFz','CPz']
+        raw.info['bads'] = ['Fp1', 'Fp2', 'AF8', 'AFz','CPz','FC6']
         raw.interpolate_bads()
     
 
@@ -188,7 +216,26 @@ def load_raw_eeg_data(name, session, Fs = 1000, low_freq = 1, high_freq = 30 , i
     """
     
     fname, fpreload = get_raw_name(name,session)
-    raw = mne.io.read_raw_brainvision(fname, preload = fpreload, verbose='ERROR')
+    if isinstance(fname, list):
+        print('Retrieved in ', str(len(fname)),' parts')
+        raws = []
+
+        for (name,preload) in zip(fname,fpreload):
+            raw_tmp = mne.io.read_raw_brainvision(fname, preload = fpreload, verbose='ERROR')
+            raws.append(raw_tmp)
+        raw = mne.concatenate_raws(raws)
+        annot_tot = raw.annotations
+        idx = []
+        for i in range(len(annot_tot)):
+            if annot_tot[i]['description'] != 'Response/R  3':
+                idx.append(i)
+        annot_tot.delete(idx = idx)
+        events = (annot_tot.onset * 1000).astype(int)[-16:]
+    else:
+        print('Retrieved in one part')
+        raw = mne.io.read_raw_brainvision(fname, preload = fpreload, verbose='ERROR')
+        events = mne.events_from_annotations(raw,'auto',verbose='ERROR')[0][:].T[0][1:]
+    #raw = mne.io.read_raw_brainvision(fname, preload = fpreload, verbose='ERROR')
     raw.set_eeg_reference('average', projection=True)
     F_eeg = raw.info['sfreq']
     if Fs != F_eeg:
@@ -205,7 +252,7 @@ def load_raw_eeg_data(name, session, Fs = 1000, low_freq = 1, high_freq = 30 , i
         ica.exclude = [0]
         ica.apply(raw)
     
-    events = mne.events_from_annotations(raw,'auto',verbose='ERROR')[0][:].T[0][1:]
+    #events = mne.events_from_annotations(raw,'auto',verbose='ERROR')[0][:].T[0][1:]
     
     return raw, events
 
@@ -228,11 +275,30 @@ def save_raw_data(name, session, cond_list, Fs = 1000):
     fname, fpreload = get_raw_name(name,session)
     print(fname)
     print(fpreload)
-    raw = mne.io.read_raw_brainvision(fname, preload = fpreload, verbose='ERROR')
+    if isinstance(fname, list):
+        print('Retrieved in ', str(len(fname)),' parts')
+        raws = []
+
+        for (name,preload) in zip(fname,fpreload):
+            raw_tmp = mne.io.read_raw_brainvision(fname, preload = fpreload, verbose='ERROR')
+            raws.append(raw_tmp)
+        raw = mne.concatenate_raws(raws)
+        annot_tot = raw.annotations
+        idx = []
+        for i in range(len(annot_tot)):
+            if annot_tot[i]['description'] != 'Response/R  3':
+                idx.append(i)
+        annot_tot.delete(idx = idx)
+        events = (annot_tot.onset * 1000).astype(int)[-16:]
+    else:
+        print('Retrieved in one part')
+        raw = mne.io.read_raw_brainvision(fname, preload = fpreload, verbose='ERROR')
+        events = mne.events_from_annotations(raw,'auto',verbose='ERROR')[0][:].T[0][1:]
+    #raw = mne.io.read_raw_brainvision(fname, preload = fpreload, verbose='ERROR')
     raw.set_eeg_reference('average', projection=True)
     path_save = ospath.join(path_data, 'Raw')
     
-    events = mne.events_from_annotations(raw,'auto',verbose='ERROR')[0][:].T[0][1:]
+    #events = mne.events_from_annotations(raw,'auto',verbose='ERROR')[0][:].T[0][1:]
     stimtrack = raw['Sound'][0][0]
     chapters, parameters = param_load(name,session)
     
@@ -537,9 +603,16 @@ def Align_and_Save(name, session, F_resample, Fs=1000, ica = False,detrend=None)
         print(delay)
         #eeg = np.roll(eeg,-delay,axis=1)[:,start_trial:end_trial]
         #eeg = eeg[:,start_trial+delay:end_trial+delay]
-        #eeg_current = eeg[:,start_trial+delay:end_trial+delay]
-        eeg_current = eeg[:,start_trial:end_trial]
-        
+        eeg_current = eeg[:,start_trial-delay:end_trial-delay]
+        #eeg_current = eeg[:,start_trial:end_trial]
+        stimtrack_current = stimtrack[start_trial-delay:end_trial-delay]
+        if condition['type'] == 'tactile':
+            delay = lag_finder(stimtrack_current,tactile,Fs)
+        elif condition['type'] == 'audio' or not condition['correlated']:
+            delay = lag_finder(stimtrack_current,audio_noise,Fs)
+        else:
+            delay = lag_finder(stimtrack_current,audio_noise + tactile*2000,Fs)
+        print(delay)
         
         trial = dict()
         audio, tactile, dirac, noise = stimuli_load(path_stimuli, chapter, part, F_resample)
@@ -761,6 +834,55 @@ def Tactile_ERP(name_list, session, F_resample, Fs=1000, t_min = -1., t_max = 1.
 
 '''            
             
+def load_behavioural():
+    behav_file = ospath.join(path_behav,'behavioural_results.pkl')
+    pkl_file = open(behav_file, 'rb')
+    behav_result = pickle.load(pkl_file)
+    pkl_file.close()
+    return behav_result
+    
+def subjective_scaling(name,session):
+
+    subjective_file = 'eeg_subjective.pkl'
+    pkl_file = open(subjective_file, 'rb')
+    subjective_scale = pickle.load(pkl_file)
+    pkl_file.close()
+    
+    if not(name in subjective_scale):
+        subjective_scale[name] = dict()
+        subjective_scale[name][session] = dict()
+    elif not(session in subjective_scale[name]):
+            subjective_scale[name][session] = dict()
+    else:
+        print('The subjective scale has already been registered, rewrite over it? Y/N')
+        if input() != 'Y':
+            return 0
+    
+    sentences, parameters = param_load(name,session)
+    
+    for param in parameters:
+        if param == 1:
+            print('tactile')
+        elif param in subjective_scale[name][session]:
+            subjective_scale[name][session][param] += int(input()) / 2
+        else:
+            subjective_scale[name][session][param] = int(input()) / 2
+    output = open('eeg_subjective.pkl', 'wb')
+    pickle.dump(subjective_scale, output)
+    output.close()
+    
+    return 0
+    
+def get_subjective_scale():
+
+    subjective_file = 'eeg_subjective.pkl'
+    pkl_file = open(subjective_file, 'rb')
+    subjective_scale = pickle.load(pkl_file)
+    pkl_file.close()
+    
+    return subjective_scale
+    
+    
     
 
     
