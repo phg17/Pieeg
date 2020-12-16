@@ -27,6 +27,7 @@ import matplotlib.pyplot as plt
 import mne
 from mne.preprocessing.ica import ICA
 from mne.filter import detrend as detrend_data
+from obspy.signal.detrend import polynomial
 
 
 File_ref = dict()
@@ -39,6 +40,7 @@ File_ref['chap'] = ['chap_1', 'chap_2']
 File_ref['alio'] = ['alio_1', 'alio_2']
 File_ref['sep'] = ['sep_1', 'sep_2']
 File_ref['lad'] = [['lad_1','lad_1_1'], 'lad_2']
+File_ref['calco'] = ['calco_1', 'calco_2']
 
 
 
@@ -54,6 +56,18 @@ Conditions_EEG[7] = {'type':'audio-tactile','delay':0,'correlated':False} #uncor
 
 Bad_trial = dict()
 Bad_trial['deb1'] = True
+
+Bad_Channels = dict()
+Bad_Channels['phil'] = [['CPz','FCz','FC6','AF3'],['CPz','FCz','FC6','AF3']]
+Bad_Channels['al'] = [['CPz','FCz','FC6','AF3'],['CPz','FCz','FC6','AF3']]
+Bad_Channels['yr'] = [['CPz','FCz','FC6','AF3'],['CPz','FCz','FC6','AF3']]
+Bad_Channels['jon'] = [['CPz','FCz','FC6','AF3'],['CPz','FCz','FC6','AF3']]
+Bad_Channels['deb'] = [['CPz','FCz','FC6','AF3'],['CPz','FCz','FC6','AF3']]
+Bad_Channels['chap'] = [['CPz','FCz','FC6','AF3'],['CPz','FCz','FC6','AF3']]
+Bad_Channels['alio'] = [['CPz','FCz','FC6','AF3'],['CPz','FCz','FC6','AF3']]
+Bad_Channels['sep'] = [['CPz','FCz','FC6','AF3'],['CPz','FCz','FC6','AF3']]
+Bad_Channels['lad'] = [['CPz','FCz','FC6','AF3'],['CPz','FCz','FC6','AF3']]
+Bad_Channels['calco'] = [['CPz','FCz','FC6','AF3'],['CPz','FCz','FC6','AF3']]
 
 path_behav = '/home/phg17/Documents/Behavioural Experiment/data/Behavioural_2' 
 path_data = '/home/phg17/Documents/EEG Experiment/Data Analysis/Data'
@@ -131,27 +145,28 @@ def load_eeg_data(name, session, Fs = 1000, low_freq = 1, high_freq = 30 , ica=F
     fname, fpreload = get_raw_name(name,session)
     print(fname)
     print(fpreload)
-    if isinstance(fname, list):
-        print('Retrieved in ', str(len(fname)),' parts')
-        raws = []
-
-        for (name,preload) in zip(fname,fpreload):
-            raw_tmp = mne.io.read_raw_brainvision(name, preload = preload, verbose='ERROR')
-            raws.append(raw_tmp)
-        raw = mne.concatenate_raws(raws)
-        annot_tot = raw.annotations
-        idx = []
-        for i in range(len(annot_tot)):
-            if annot_tot[i]['description'] != 'Response/R  3':
-                idx.append(i)
-        annot_tot.delete(idx = idx)
-        events = (annot_tot.onset * 1000).astype(int)[-16:]
-        #events = mne.events_from_annotations(raw,'auto',verbose='ERROR')[0][:].T[0][1:]
-    else:
-        print('Retrieved in one part')
-        raw = mne.io.read_raw_brainvision(fname, preload = fpreload, verbose='ERROR')
-        events = mne.events_from_annotations(raw,'auto',verbose='ERROR')[0][:].T[0][1:]
+    #if isinstance(fname, list):
+    #    print('Retrieved in ', str(len(fname)),' parts')
+    #    raws = []
+    #
+    #    for (name,preload) in zip(fname,fpreload):
+    #        raw_tmp = mne.io.read_raw_brainvision(name, preload = preload, verbose='ERROR')
+    #        raws.append(raw_tmp)
+    #    raw = mne.concatenate_raws(raws)
+    #    annot_tot = raw.annotations
+    #    idx = []
+    #    for i in range(len(annot_tot)):
+    #        if annot_tot[i]['description'] != 'Response/R  3':
+    #            idx.append(i)
+    #    annot_tot.delete(idx = idx)
+    #    events = (annot_tot.onset * 1000).astype(int)[-16:]
+    #    #events = mne.events_from_annotations(raw,'auto',verbose='ERROR')[0][:].T[0][1:]
+    #else:
+    print('Retrieved in one part')
+    raw = mne.io.read_raw_brainvision(fname, preload = fpreload, verbose='ERROR')
+    #events = mne.events_from_annotations(raw,'auto',verbose='ERROR')[0][:].T[0][1:]
     raw.set_eeg_reference('average', projection=True)
+    raw.apply_proj()
     if detrend:
         print('Detrending')
         raw_detrend = mne.io.RawArray(np.vstack([detrend_data(raw.get_data()[0:63],1,axis=1),raw.get_data()[63:]]),raw.info)
@@ -166,7 +181,8 @@ def load_eeg_data(name, session, Fs = 1000, low_freq = 1, high_freq = 30 , ica=F
     raw.filter(low_freq,high_freq,h_trans_bandwidth=2,verbose='ERROR')
     
     if bad:
-        raw.info['bads'] = ['Fp1', 'Fp2', 'AF8', 'AFz','CPz','FC6']
+        print('Interpolating')
+        raw.info['bads'] = ['CPz','FCz','FC6'] #['CPz','FCz'] #['Fp1', 'Fp2', 'AF8', 'AFz','CPz','FC6']
         raw.interpolate_bads()
     
 
@@ -184,7 +200,7 @@ def load_eeg_data(name, session, Fs = 1000, low_freq = 1, high_freq = 30 , ica=F
     time = raw.times
     srate = raw.info['sfreq']
     eeg = raw.get_data()[:63]
-    #events = mne.events_from_annotations(raw,'auto',verbose='ERROR')[0][:].T[0][1:]
+    events = mne.events_from_annotations(raw,'auto',verbose='ERROR')[0][:].T[0][1:]
     stimtrack = raw['Sound'][0][0]
     button = raw['Button'][0][0]
     diode = raw['Diode'][0][0]
@@ -319,7 +335,7 @@ def save_raw_data(name, session, cond_list, Fs = 1000):
         parameter = parameters[n_trial]
         
         if parameter in cond_list:
-            audio, tactile, dirac, noise = stimuli_load(path_stimuli, chapter, part, Fs=1000)
+            audio, tactile, dirac, phonetic_features, noise = stimuli_load(path_stimuli, chapter, part, Fs=1000)
             if name == 'deb' and session==1:
                 start_trial = events[n_trial-1]  
                 
@@ -349,7 +365,7 @@ def save_raw_data(name, session, cond_list, Fs = 1000):
             print(delay)
     
             
-            audio, tactile, dirac, noise = stimuli_load(path_stimuli, chapter, part, F_resample)
+            audio, tactile, dirac, phonetic_features, noise = stimuli_load(path_stimuli, chapter, part, F_resample,phonetics=True)
             syllables = np.copy(dirac)
             dirac = np.roll(dirac,int(condition['delay']/ 1000 * F_resample))
     
@@ -365,6 +381,7 @@ def save_raw_data(name, session, cond_list, Fs = 1000):
             stimuli['syllables'] = syllables
             stimuli['dirac'] = dirac
             stimuli['sound'] = audio
+            stimuli['phonetic'] = phonetic_features.astype('int8')
             stimuli['Fs'] = F_resample
             savemat(ospath.join(path_save,stimuli_file),stimuli)
             raw_current.save(ospath.join(path_save,raw_file))
@@ -424,7 +441,7 @@ def param_load(name, session):
     return chapters, parameters
     
 
-def stimuli_load(path, chapter, part, Fs=39062.5):
+def stimuli_load(path, chapter, part, Fs=39062.5, phonetics = False):
     """Function to load the stimuli linked to a trial and resample them to the wanted frequency.
 
     Parameters
@@ -442,14 +459,27 @@ def stimuli_load(path, chapter, part, Fs=39062.5):
     tactile = np.load(file + '_phone_.npy')
     dirac = np.load(file + '_dirac.npy')
     noise = np.load(ospath.join(path, 'Odin_SSN.npy'))
-    
+    phon_feat = np.load(file + '_phonetic_features.npy')
+    path_Fs = ospath.join(path_data, str(Fs) + 'Hz')
+    phon_name = "Odin_" + str(chapter) + '_' + str(part) + '_phonetic_features.npy'
+    phon_file = ospath.join(path_Fs,phon_name)
     if Fs != F_stim:
         audio = resample(audio,39062.5,Fs)
         tactile = resample(tactile,39062.5,Fs)
         dirac = resample(dirac,39062.5,Fs,method='dirac')
+        phonetic_resample = np.zeros([phon_feat.shape[0],dirac.shape[0]])
+        if phonetics == True:
+            try:
+                phonetic_resample = np.load(phon_file)
+            except:
+                print('phonetic features not saved yet for this audio')
+                for i in range(phon_feat.shape[0]):
+                    phonetic_resample[i,:] = resample(phon_feat[i,:],39062.5,Fs,method = 'dirac')
+                np.save(phon_file,phonetic_resample)
+    else:
+        phonetic_resample = phon_feat
         
-    
-    return audio, tactile, dirac, noise
+    return audio, tactile, dirac, phonetic_resample.astype('int8'), noise
 
     
         
@@ -513,7 +543,7 @@ def get_data_trial(name, session, n_trial, Fs):
     part = n_trial%4 + 1
     parameter = parameters[n_trial]
     
-    audio, tactile, dirac, noise = stimuli_load(path_stimuli, chapter, part, Fs)
+    audio, tactile, dirac, phonetic_features ,noise = stimuli_load(path_stimuli, chapter, part, Fs,phonetics=True)
     
     start_trial = events[n_trial]
     length_trial = len(audio)
@@ -535,10 +565,10 @@ def get_data_trial(name, session, n_trial, Fs):
     #eeg = np.roll(eeg,-delay,axis=1)[:,start_trial:end_trial]
     #eeg = eeg[:,start_trial+delay:end_trial+delay]
     eeg = eeg[:,start_trial:end_trial]
-    return stimtrack, eeg, audio, tactile, dirac, parameter, condition, timescale, info
+    return stimtrack, eeg, audio, tactile, dirac, phonetic_features, parameter, condition, timescale, info
     
 
-def Align_and_Save(name, session, F_resample, Fs=1000, ica = False,detrend=None):
+def Align_and_Save(name, session, F_resample, Fs=1000, ica = False,detrend=None, phonetics = True):
     """Function to load all the information regarding a single trial of a 
     single subject. 
 
@@ -579,7 +609,7 @@ def Align_and_Save(name, session, F_resample, Fs=1000, ica = False,detrend=None)
         chapter = chapters[n_trial//4]
         part = n_trial%4 + 1
         parameter = parameters[n_trial]
-        audio, tactile, dirac, noise = stimuli_load(path_stimuli, chapter, part, Fs)
+        audio, tactile, dirac, phonetic_features, noise = stimuli_load(path_stimuli, chapter, part, Fs)
   
         start_trial = events[n_trial]
         
@@ -603,19 +633,19 @@ def Align_and_Save(name, session, F_resample, Fs=1000, ica = False,detrend=None)
         print(delay)
         #eeg = np.roll(eeg,-delay,axis=1)[:,start_trial:end_trial]
         #eeg = eeg[:,start_trial+delay:end_trial+delay]
-        eeg_current = eeg[:,start_trial-delay:end_trial-delay]
-        #eeg_current = eeg[:,start_trial:end_trial]
-        stimtrack_current = stimtrack[start_trial-delay:end_trial-delay]
-        if condition['type'] == 'tactile':
-            delay = lag_finder(stimtrack_current,tactile,Fs)
-        elif condition['type'] == 'audio' or not condition['correlated']:
-            delay = lag_finder(stimtrack_current,audio_noise,Fs)
-        else:
-            delay = lag_finder(stimtrack_current,audio_noise + tactile*2000,Fs)
-        print(delay)
+        #eeg_current = eeg[:,start_trial-delay:end_trial-delay]
+        eeg_current = eeg[:,start_trial:end_trial]
+        #stimtrack_current = stimtrack[start_trial-delay:end_trial-delay]
+        #if condition['type'] == 'tactile':
+        #    delay = lag_finder(stimtrack_current,tactile,Fs)
+        #elif condition['type'] == 'audio' or not condition['correlated']:
+        #    delay = lag_finder(stimtrack_current,audio_noise,Fs)
+        #else:
+        #    delay = lag_finder(stimtrack_current,audio_noise + tactile*2000,Fs)
+        #print(delay)
         
         trial = dict()
-        audio, tactile, dirac, noise = stimuli_load(path_stimuli, chapter, part, F_resample)
+        audio, tactile, dirac, phonetic_features, noise = stimuli_load(path_stimuli, chapter, part, F_resample,phonetics=phonetics)
         syllables = np.copy(dirac)
         tactile = np.roll(tactile,int(condition['delay']/ 1000 * F_resample))
         dirac = np.roll(dirac,int(condition['delay']/ 1000 * F_resample))
@@ -624,6 +654,7 @@ def Align_and_Save(name, session, F_resample, Fs=1000, ica = False,detrend=None)
         trial['condition'] = condition
         trial['response'] = eeg_current
         trial['audio'] = audio
+        trial['phonetic features'] = phonetic_features.astype('int8')
         trial['envelope'] = envelope
         trial['dirac'] = dirac[:len(envelope)]
         trial['syllables'] = syllables[:len(envelope)]
@@ -682,6 +713,7 @@ def Generate_Arrays(name_list,sessions,parameter_list,Fs,non_lin=1,ica=False,erp
     tactiles = []
     eegs = []
     envelopes2 = []
+    phonetics_features_list = []
     for name in name_list:
         for session in sessions:
             for i in range(2):
@@ -720,6 +752,9 @@ def Generate_Arrays(name_list,sessions,parameter_list,Fs,non_lin=1,ica=False,erp
                         tactile = np.reshape(scale(tactile.T),(len(tactile),1))
                         tactiles.append(tactile[:len(envelope)])
                         
+                        phonetic_features = trial['phonetic features'].T
+                        phonetics_features_list.append(phonetic_features)
+                        
                         eeg = trial['response'].T                    
                         eegs.append(eeg)
                         
@@ -729,36 +764,26 @@ def Generate_Arrays(name_list,sessions,parameter_list,Fs,non_lin=1,ica=False,erp
     total_eeg.append(eegs)
     if concatenate:
         y1 = np.concatenate(np.concatenate(total_eeg,axis=0),axis=0)
-        #y2 = utils.compression_eeg(y1,comp_fact=1/3)
-        #y3 = mne.filter.filter_data(y1,Fs,1,4,verbose='ERROR')
-        #y4 = mne.filter.filter_data(y1,Fs,4,8,verbose='ERROR')
-        #y5 = mne.filter.filter_data(y1,Fs,8,16,verbose='ERROR')
-        #y6 = mne.filter.filter_data(y1,Fs,1,16,verbose='ERROR')
-        #y7 = mne.filter.filter_data(y1,Fs,l_freq=None,h_freq=50,verbose='ERROR')
+
         y = y1
 
 
         x1 = np.concatenate(envelopes)[:len(y)]
-        #x2 = (np.concatenate(diracs)[:len(y)]/np.max(diracs[0])).astype(int)
-        #x3 = (np.concatenate(syllables_list)[:len(y)]/np.max(syllables_list[0])).astype(int)
+
         x2 = (np.concatenate(diracs)[:len(y)]).astype(int)
         x3 = (np.concatenate(syllables_list)[:len(y)]).astype(int)
         x4 = np.concatenate(tactiles)[:len(y)]
-        x5 = np.concatenate(envelopes2)[:len(y)]
+        x5 = np.concatenate(phonetics_features_list)[:len(y),:]
     else:
         y = total_eeg[0]
         x1 = envelopes
         x2 = diracs
         x3 = syllables_list
         x4 = tactiles
-        x5 = envelopes2
+        x5 = phonetics_features_list
     
     return y,x1,x2,x3,x4,x5
     
-
-
-
-
 
 
 
@@ -797,7 +822,7 @@ def Tactile_ERP(name_list, session, F_resample, Fs=1000, t_min = -1., t_max = 1.
             chapter = chapters[n_trial//4]
             part = n_trial%4 + 1
             parameter = parameters[n_trial]
-            audio, tactile, dirac, noise = stimuli_load(path_stimuli, chapter, part, F_resample)
+            audio, tactile, dirac, phonetic_features, noise = stimuli_load(path_stimuli, chapter, part, F_resample)
             if name == 'deb':
                 start_trial = events[n_trial-1]
                 
@@ -826,13 +851,7 @@ def Tactile_ERP(name_list, session, F_resample, Fs=1000, t_min = -1., t_max = 1.
         evoked_dict[i].append(epochs_dict[i].average())
     return epochs_dict, evoked_dict
 
-'''            
-            epochs = mne.Epochs(raw, eve, tmin=-1., tmax=1.,event_id={'pulse':1} ,preload=False, reject=None)
-            evoked = epochs['pulse'].average()
-            print(condition)
-    return evoked, epochs
-
-'''            
+          
             
 def load_behavioural():
     behav_file = ospath.join(path_behav,'behavioural_results.pkl')
@@ -857,16 +876,21 @@ def subjective_scaling(name,session):
         print('The subjective scale has already been registered, rewrite over it? Y/N')
         if input() != 'Y':
             return 0
+        else:
+            subjective_scale[name][session] = dict()
+            print(subjective_scale[name][session])
     
     sentences, parameters = param_load(name,session)
     
     for param in parameters:
         if param == 1:
-            print('tactile')
+            print('\n tactile')
         elif param in subjective_scale[name][session]:
             subjective_scale[name][session][param] += int(input()) / 2
+            print(subjective_scale[name][session][param])
         else:
             subjective_scale[name][session][param] = int(input()) / 2
+            print(param,subjective_scale[name][session][param])
     output = open('eeg_subjective.pkl', 'wb')
     pickle.dump(subjective_scale, output)
     output.close()
@@ -882,8 +906,174 @@ def get_subjective_scale():
     
     return subjective_scale
     
+
+
+
+def Robust_Detrend(raw, Fs, order = 10, robust = False, n_iter = 2, threshold = 3):
+
+    if order == 1:
+        raw_detrend = mne.io.RawArray(np.vstack([detrend_data(raw.get_data()[0:63],1,axis=1),raw.get_data()[63:]]),raw.info, verbose='ERROR')
     
+    elif not(robust):
+        data = raw.get_data()
+        time = np.arange(data.shape[1])
+        data_detrend = np.zeros(raw.get_data().shape)
+        for i in range(64):
+            p = np.poly1d(np.polyfit(time,data[i,:],deg=order))
+            data_detrend[i,:] = data[i,:] - p(time)
+        for i in range(64,66):
+            data_detrend[i,:] = data[i,:]
+        raw_detrend = mne.io.RawArray(data_detrend, raw.info, verbose='ERROR')
+        
+    else:
+        data = raw.get_data()
+        time = np.arange(data.shape[1])
+        data_detrend = np.zeros(raw.get_data().shape)
+        for i in range(64):
+            weights = np.ones(data.shape[1])
+            iteration = 0
+            thres = False
+            while iteration < n_iter and not(thres):
+                p = np.poly1d(np.polyfit(time,data[i,:],deg=order, w =weights))
+                data_detrend[i,:] = data[i,:] - p(time)
+                thres = (np.abs(data_detrend[i,:] / np.std(data_detrend[i,:])) > threshold).any()
+                weights[np.abs(data_detrend[i,:] / np.std(data_detrend[i,:])) > threshold] = 0
+                
+        for i in range(64,66):
+            data_detrend[i,:] = data[i,:]
+        raw_detrend = mne.io.RawArray(data_detrend, raw.info, verbose='ERROR')
+    return raw_detrend
+
+
+
+
+def Align_and_Save_from_Raw(name, session, F_resample_list, Fs=1000, apply_ica = False,detrend=None, phonetics = True):
     
+    cond_count = dict()
+    for cond in range(8):
+        cond_count[cond] = dict()
+        for F_resample in F_resample_list:
+            cond_count[cond][F_resample] = 0
+
+    
+    fname, fpreload = get_raw_name(name,session)
+    print(fname)
+    print(fpreload, '\n')
+    raw = mne.io.read_raw_brainvision(fname, preload = fpreload, verbose='ERROR')
+    raw.filter(l_freq=0.1,h_freq=None)
+    
+    if Bad_Channels[name][session-1]:
+        raw.info['bads'] = Bad_Channels[name][session-1] #['CPz','FCz'] #['Fp1', 'Fp2', 'AF8', 'AFz','CPz','FC6'] ['CPz','FCz','FC6']
+        raw.interpolate_bads()
+    
+    raw.filter(l_freq=None,h_freq=32)
+
+    events = mne.events_from_annotations(raw,'auto',verbose='ERROR')[0][:].T[0][1:]
+
+    #events = mne.events_from_annotations(raw,'auto',verbose='ERROR')[0][:].T[0][1:]
+    
+    chapters, parameters = param_load(name,session)
+    
+    start = 0
+    end = 16
+    
+    for n_trial in range(start,end):
+        
+        chapter = chapters[n_trial//4]
+        part = n_trial%4 + 1
+        parameter = parameters[n_trial]
+        
+        print('Aligning Data for trial ', str(n_trial + 1), ' out of 16', '\n')
+        audio, tactile, dirac, phonetic_features, noise = stimuli_load(path_stimuli, chapter, part, Fs=1000)
+        start_trial = events[n_trial]
+        length_trial = len(audio)
+        end_trial = start_trial + length_trial
+        raw_current = raw.copy().crop(start_trial/1000,end_trial/1000)
+        stimtrack_current = raw_current['Sound'][0][0]
+        condition = Conditions_EEG[parameter]
+        tactile = np.roll(tactile,int(condition['delay']/ 1000 * Fs))
+        dirac = np.roll(dirac,int(condition['delay']/ 1000 * Fs))
+        audio_noise = AddNoisePostNorm(audio,noise,-2)
+        print(condition)
+        if condition['type'] == 'tactile':
+            delay = lag_finder(stimtrack_current,tactile,Fs)
+        elif condition['type'] == 'audio' or not condition['correlated']:
+            delay = lag_finder(stimtrack_current,audio_noise,Fs)
+        else:
+            delay = lag_finder(stimtrack_current,audio_noise + tactile*2000,Fs)
+        print(delay, '\n')
+        
+        raw_current_detrend = Robust_Detrend(raw_current, Fs, order = 10, robust = False, n_iter = 2, threshold = 3)
+        raw_current_detrend.drop_channels(['Sound','Diode','Button'])
+        
+        print('\n','re-referencing to average')
+        raw_current_detrend.set_eeg_reference('average', projection=True,verbose='ERROR')
+        raw_current_detrend.apply_proj()
+        
+        if apply_ica:
+            print('\n','Applying Artifact Correction by ICA')
+            n_components = 10
+            ica = ICA(n_components = n_components, random_state = 97)
+            ica.fit(raw_current_detrend, verbose='ERROR')
+            #ica.plot_components()
+            #plt.pause(0.05)
+            #for i_comp in range(n_components):
+            #    exclude = input('delete components ' + str(i_comp) + '? Y/N \n')
+            #    if exclude == 'Y' or exclude == 'y':
+            #        ica.exclude = [0]
+            #ica.apply(raw_current_detrend)
+            #plt.close()
+            ica.detect_artifacts(raw_current_detrend)
+            ica.apply(raw_current_detrend)
+        
+        if Bad_Channels[name][session - 1]:
+            print('\n','Interpolating channels ' + str(Bad_Channels[name][session - 1]))
+            raw_current_detrend.info['bads'] = Bad_Channels[name][session - 1] #['CPz','FCz'] #['Fp1', 'Fp2', 'AF8', 'AFz','CPz','FC6']
+            raw_current_detrend.interpolate_bads()
+
+        
+        
+        
+        for F_resample in F_resample_list:
+            path_save = ospath.join(path_data, str(F_resample) + 'Hz')
+            raw_copy = raw_current_detrend.copy()
+            F_eeg = raw_current_detrend.info['sfreq']
+            if F_resample != F_eeg:
+                print('\n','Resampling from ',str(F_eeg),'Hz to ',str(F_resample),'Hz')
+                #raw.filter(1,Fs/2,h_trans_bandwidth=2,verbose='ERROR')
+                raw_copy.resample(F_resample,verbose='ERROR')
+        
+                
+            trial = dict()
+            audio, tactile, dirac, phonetic_features, noise = stimuli_load(path_stimuli, chapter, part, F_resample,phonetics=phonetics)
+            syllables = np.copy(dirac)
+            tactile = np.roll(tactile,int(condition['delay']/ 1000 * F_resample))
+            dirac = np.roll(dirac,int(condition['delay']/ 1000 * F_resample))
+            envelope = signal_envelope(audio, F_resample, cutoff=20, method='hilbert', resample = None)
+            eeg_current = raw_copy.get_data()
+            length = len(envelope)
+            
+            trial['condition'] = condition
+            trial['response'] = eeg_current[:,:length]
+            trial['audio'] = audio
+            trial['phonetic features'] = phonetic_features.astype('int8')
+            trial['envelope'] = envelope
+            trial['dirac'] = dirac[:length]
+            trial['syllables'] = syllables[:length]
+            trial['tactile'] = tactile[:length]
+            
+            
+            count = cond_count[parameter][F_resample]
+            cond_count[parameter][F_resample] += 1
+            
+            filename = get_name(parameter,name,session,count,F_resample,ica=apply_ica)
+            file = ospath.join(path_save,filename)
+            print(file)
+        
+            output = open(file, 'wb')
+            pickle.dump(trial, output)
+            output.close()
+        
 
     
     

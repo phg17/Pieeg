@@ -1547,7 +1547,7 @@ class Decoder(BaseEstimator):
         self.valid_samples_ = None
         self.XtX_ = None # Autocorrelation matrix of feature X (thus XtX) -> used for computing model using fit_from_cov 
         self.XtY_ = None # Covariance matrix of features X and Y (thus XtX) -> used for computing model using fit_from_cov 
-
+        self.coef_additive = None
 
     def fill_lags(self):
         """Fill the lags attributes.
@@ -1891,7 +1891,7 @@ class Decoder(BaseEstimator):
             raise NotImplementedError("Only correlation score is valid for now...")
 
 
-    def xval_eval(self, X, y, n_splits=5, lagged=False, drop=True, train_full=True, scoring="corr", segment_length=None, fit_mode='direct', verbose=True):
+    def xval_eval(self, X, y, n_splits=5, lagged=False, drop=True, train_full=True, scoring="corr", segment_length=None, fit_mode='direct', verbose=True, Additive_model = False):
         '''
         Standard cross-validation. Scoring
         Parameters
@@ -1945,19 +1945,26 @@ class Decoder(BaseEstimator):
         else:
             scores = np.zeros((n_splits, self.n_chans_, len(self.alpha)))
         
+        
+        
         for kfold, (train, test) in enumerate(kf.split(X)):
-            if verbose: print("Training/Evaluating fold %d/%d"%(kfold+1, n_splits))
-
-            if fit_mode.find('from_cov') > -1: # Fit using trick with adding covariance matrices -> saves RAM
-            # Format 'from_cov_xxx' -> xxx - duration of a single part. 
-            # The main idea is to chunk the data into bite-sized parts that will fit in the RAM
-                if len(fit_mode.split('_')) == 2:
-                    part_lenght = 150
-                elif len(fit_mode.split('_')) == 3:
-                    part_lenght = int(fit_mode.split('_')[-1])
-                self.fit_from_cov(X[train,:], y[train,:], overwrite=True, part_length=part_lenght)
-            else: # Fit directly -> slightly faster, but uses more RAM
-                self.fit(X[train,:], y[train,:])
+            
+            if not Additive_model:
+                if verbose: print("Training/Evaluating fold %d/%d"%(kfold+1, n_splits))
+    
+                if fit_mode.find('from_cov') > -1: # Fit using trick with adding covariance matrices -> saves RAM
+                # Format 'from_cov_xxx' -> xxx - duration of a single part. 
+                # The main idea is to chunk the data into bite-sized parts that will fit in the RAM
+                    if len(fit_mode.split('_')) == 2:
+                        part_lenght = 150
+                    elif len(fit_mode.split('_')) == 3:
+                        part_lenght = int(fit_mode.split('_')[-1])
+                    self.fit_from_cov(X[train,:], y[train,:], overwrite=True, part_length=part_lenght)
+                else: # Fit directly -> slightly faster, but uses more RAM
+                    self.fit(X[train,:], y[train,:])
+            
+            else:
+                self.coef_ = self.coef_additive
 
             if segment_length: # Chop testing data into smaller pieces
                 

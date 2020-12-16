@@ -490,7 +490,8 @@ def get_timing(spikes):
         if spikes[i] == 1:
             timing.append(i)
     return timing
-            
+
+
 
 def compression_eeg(signal,comp_fact = 1):
     sign = np.sign(signal)
