@@ -1548,6 +1548,7 @@ class Decoder(BaseEstimator):
         self.XtX_ = None # Autocorrelation matrix of feature X (thus XtX) -> used for computing model using fit_from_cov 
         self.XtY_ = None # Covariance matrix of features X and Y (thus XtX) -> used for computing model using fit_from_cov 
         self.coef_additive = None
+        self.split_coef = []
 
     def fill_lags(self):
         """Fill the lags attributes.
@@ -1963,6 +1964,8 @@ class Decoder(BaseEstimator):
                 else: # Fit directly -> slightly faster, but uses more RAM
                     self.fit(X[train,:], y[train,:])
             
+                self.split_coef.append(self.coef_)
+            
             else:
                 self.coef_ = self.coef_additive
 
@@ -1984,7 +1987,7 @@ class Decoder(BaseEstimator):
         if segment_length:
             scores = np.asarray(scores)
 
-        if train_full: 
+        if train_full and not Additive_model: 
             if verbose: print("Fitting full model...")
             if fit_mode.find('from_cov') > -1: # Fit using trick with adding covariance matrices -> saves RAM
                 self.fit_from_cov(X, y, overwrite=True, part_length=part_lenght)
