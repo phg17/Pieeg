@@ -45,6 +45,10 @@ File_ref['alio'] = ['alio_1', 'alio_2']
 File_ref['sep'] = ['sep_1', 'sep_2']
 File_ref['lad'] = [['lad_1','lad_1_1'], 'lad_2']
 File_ref['calco'] = ['calco_1', 'calco_2']
+File_ref['ogre'] = ['ogre_1', 'ogre_2']
+File_ref['zartan'] = ['zartan_1', 'zartan_2']
+File_ref['hudi'] = ['hudi_1', 'hudi_2']
+File_ref['nima'] = ['nima', 'nima_2']
 
 
 
@@ -62,16 +66,20 @@ Bad_trial = dict()
 Bad_trial['deb1'] = True
 
 Bad_Channels = dict()
-Bad_Channels['phil'] = [['CPz','FCz','FC6','AF3'],['CPz','FCz','FC6','AF3']]
-Bad_Channels['al'] = [['CPz','FCz','FC6','AF3'],['CPz','FCz','FC6','AF3']]
-Bad_Channels['yr'] = [['CPz','FCz','FC6','AF3'],['CPz','FCz','FC6','AF3']]
-Bad_Channels['jon'] = [['CPz','FCz','FC6','AF3'],['CPz','FCz','FC6','AF3']]
-Bad_Channels['deb'] = [['CPz','FCz','FC6','AF3'],['CPz','FCz','FC6','AF3']]
-Bad_Channels['chap'] = [['CPz','FCz','FC6','AF3'],['CPz','FCz','FC6','AF3']]
-Bad_Channels['alio'] = [['CPz','FCz','FC6','AF3'],['CPz','FCz','FC6','AF3']]
-Bad_Channels['sep'] = [['CPz','FCz','FC6','AF3'],['CPz','FCz','FC6','AF3']]
-Bad_Channels['lad'] = [['CPz','FCz','FC6','AF3'],['CPz','FCz','FC6','AF3']]
-Bad_Channels['calco'] = [['CPz','FCz','FC6','AF3'],['CPz','FCz','FC6','AF3']]
+Bad_Channels['phil'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
+Bad_Channels['al'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
+Bad_Channels['yr'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
+Bad_Channels['jon'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
+Bad_Channels['deb'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
+Bad_Channels['chap'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
+Bad_Channels['alio'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
+Bad_Channels['sep'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
+Bad_Channels['lad'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
+Bad_Channels['calco'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
+Bad_Channels['ogre'] = [['CPz','FCz','FC6','AF3','AF7','FT9'],['CPz','FCz','FC6','AF3','AF7']]
+Bad_Channels['zartan'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
+Bad_Channels['hudi'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
+Bad_Channels['nima'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
 
 path_behav = '/home/phg17/Documents/Behavioural Experiment/data/Behavioural_2' 
 path_data = '/home/phg17/Documents/EEG Experiment/Data Analysis/Data'
@@ -775,7 +783,7 @@ def Generate_Arrays(name_list,sessions,parameter_list,Fs,non_lin=1,ica=False,erp
                         trial = pickle.load(pkl_file)
                         pkl_file.close()
                         
-                        envelope = trial['envelope']
+                        envelope = trial['envelope2']
                         envelope2 = np.copy(envelope)
                         envelope2 = np.reshape(scale(envelope2.T),(len(envelope2),1))
                         envelopes2.append(envelope2)
@@ -795,7 +803,7 @@ def Generate_Arrays(name_list,sessions,parameter_list,Fs,non_lin=1,ica=False,erp
                         
                         pitch = trial['pitch']
                         pitch = np.reshape(scale(pitch.T),(len(pitch),1))
-                        pitch /= np.max(pitch)
+                        pitch -= np.min(pitch)
                         pitch_list.append(pitch)  
                         
                         f0 = trial['f0']
@@ -827,7 +835,7 @@ def Generate_Arrays(name_list,sessions,parameter_list,Fs,non_lin=1,ica=False,erp
                         spectro = trial['spectrogram'].T
                         spectro_list.append(spectro)
                         
-                        eeg = trial['response'].T                    
+                        eeg = scale(trial['response'].T)                   
                         eegs.append(eeg)
                         
                         if parameter == 7:
