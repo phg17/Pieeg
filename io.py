@@ -49,6 +49,12 @@ File_ref['ogre'] = ['ogre_1', 'ogre_2']
 File_ref['zartan'] = ['zartan_1', 'zartan_2']
 File_ref['hudi'] = ['hudi_1', 'hudi_2']
 File_ref['nima'] = ['nima', 'nima_2']
+File_ref['raqu'] = ['raqu', 'raqu_2']
+File_ref['maza'] = ['maza_1', 'maza_2']
+File_ref['naga'] = ['naga_1', 'naga_2']
+File_ref['nikf'] = ['nikf', 'nikf_2']
+File_ref['riva'] = ['riva_1', 'riva_2']
+File_ref['elios'] = [['elios_1','elios_1_2'], 'elios_2']
 
 
 
@@ -80,6 +86,12 @@ Bad_Channels['ogre'] = [['CPz','FCz','FC6','AF3','AF7','FT9'],['CPz','FCz','FC6'
 Bad_Channels['zartan'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
 Bad_Channels['hudi'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
 Bad_Channels['nima'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
+Bad_Channels['raqu'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
+Bad_Channels['maza'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
+Bad_Channels['naga'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
+Bad_Channels['nikf'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
+Bad_Channels['riva'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
+Bad_Channels['elios'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
 
 path_behav = '/home/phg17/Documents/Behavioural Experiment/data/Behavioural_2' 
 path_data = '/home/phg17/Documents/EEG Experiment/Data Analysis/Data'
@@ -835,7 +847,8 @@ def Generate_Arrays(name_list,sessions,parameter_list,Fs,non_lin=1,ica=False,erp
                         spectro = trial['spectrogram'].T
                         spectro_list.append(spectro)
                         
-                        eeg = scale(trial['response'].T)                   
+                        eeg = scale(trial['response'].T)             
+                        eeg = trial['response'].T   
                         eegs.append(eeg)
                         
                         if parameter == 7:
@@ -1056,7 +1069,7 @@ def Align_and_Save_from_Raw(name, session, F_resample_list, Fs=1000, apply_ica =
     fname, fpreload = get_raw_name(name,session)
     print(fname)
     print(fpreload, '\n')
-    if (name == 'lad' and session == 1) or (name == 'yr' and session == 1):
+    if (name == 'lad' and session == 1) or (name == 'yr' and session == 1) or (name == 'elios' and session == 1):
         raw0 = mne.io.read_raw_brainvision(fname[0], preload = fpreload[0], verbose='ERROR')
         raw1 = mne.io.read_raw_brainvision(fname[1], preload = fpreload[1], verbose='ERROR')
         raw0.filter(l_freq=0.1,h_freq=None)
@@ -1083,9 +1096,25 @@ def Align_and_Save_from_Raw(name, session, F_resample_list, Fs=1000, apply_ica =
             raw.info['bads'] = Bad_Channels[name][session-1] #['CPz','FCz'] #['Fp1', 'Fp2', 'AF8', 'AFz','CPz','FC6'] ['CPz','FCz','FC6']
             raw.interpolate_bads()
         
+        if name == 'ogre' and session == 2:
+            raw.info['bads'] = ['FT10','FCz'] #['Fp1', 'Fp2', 'AF8', 'AFz','CPz','FC6'] ['CPz','FCz','FC6']
+            raw.interpolate_bads()
+        
         raw.filter(l_freq=None,h_freq=32)
     
         events = mne.events_from_annotations(raw,'auto',verbose='ERROR')[0][:].T[0][1:]
+        
+        if name == 'zartan' and session == 2:
+            events = events[3:]
+            events[0] -= 2387
+        
+        elif name == 'hudi' and session == 1:
+            events = events[14:]
+
+        elif name == 'naga' and session == 1:
+            events = np.asarray([0] + list(events))
+        elif name == 'naga' and session == 2:
+            events[8] -= 38535
 
     #events = mne.events_from_annotations(raw,'auto',verbose='ERROR')[0][:].T[0][1:]
     
@@ -1096,14 +1125,22 @@ def Align_and_Save_from_Raw(name, session, F_resample_list, Fs=1000, apply_ica =
     trials = np.arange(start,end)
     if name == 'yr' and session == 1:
         trials = [0,1,2,3,4,5,6,7,8,9,10,11,13,14,15]
+    elif name == 'naga' and session == 1:
+        trials = [1,2,3,4,5,6,7,8,9,10,11,12,14,15]
+    elif name == 'riva' and session == 1:
+        trials = [0,1,2,3,4,5,6,7,8,9,10,12,13,14,15]
+    elif name == 'elios' and session == 1:
+        trials = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,15]
     
     #for n_trial in range(start,end):
     for n_trial in trials:
         
-        if (name == 'lad' and session == 1) or (name == 'yr' and session == 1):
+        if (name == 'lad' and session == 1) or (name == 'yr' and session == 1) or (name == 'elios' and session == 1):
             if name == 'lad' and n_trial < 3:
                 raw = raw0.copy()
-            if name == 'yr' and n_trial < 13:
+            elif name == 'yr' and n_trial < 13:
+                raw = raw0.copy()
+            elif name == 'elios' and n_trial < 15:
                 raw = raw0.copy()
             else:
                 raw = raw1.copy()
@@ -1142,7 +1179,7 @@ def Align_and_Save_from_Raw(name, session, F_resample_list, Fs=1000, apply_ica =
         
         if apply_ica:
             print('\n','Applying Artifact Correction by ICA')
-            n_components = 10
+            n_components = 20
             ica = ICA(n_components = n_components, random_state = 97,max_iter=500)
             ica.fit(raw_current_detrend, verbose='ERROR')
             #ica.plot_components()
@@ -1246,7 +1283,9 @@ def load_comprehension_questions(name_list,mode = 'condition', sessionwise = Tru
                     else:
                         print('mode is not recognize')
                         return None
+            
     df = pd.DataFrame.from_dict(Comprehension_Score)
+    plt.bar(df.columns,np.mean(df.values,axis=0))
     return df
     
 
@@ -1260,7 +1299,7 @@ def load_tactile_task(name_list,mode = 'condition', sessionwise = True):
             fname, fpreload = get_raw_name(name,session)
             print(fname)
             print(fpreload, '\n')
-            if (name == 'lad' and session == 1) or (name == 'yr' and session == 1):
+            if (name == 'lad' and session == 1) or (name == 'yr' and session == 1) or (name == 'elios' and session == 1):
                 raw0 = mne.io.read_raw_brainvision(fname[0], preload = fpreload[0], verbose='ERROR')
                 raw1 = mne.io.read_raw_brainvision(fname[1], preload = fpreload[1], verbose='ERROR')
                 raw0.filter(l_freq=0.1,h_freq=None)
@@ -1272,22 +1311,29 @@ def load_tactile_task(name_list,mode = 'condition', sessionwise = True):
             else:
                 raw = mne.io.read_raw_brainvision(fname, preload = fpreload, verbose='ERROR')
                 raw.filter(l_freq=0.1,h_freq=None)
-
             
                 events = mne.events_from_annotations(raw,'auto',verbose='ERROR')[0][:].T[0][1:]
+                if name == 'naga' and session == 1:
+                    events = np.asarray([0] + list(events))
             
-            
-            
+                if name == 'zartan' and session == 2:
+                    events = events[3:]
+                    events[0] -= 2387
+        
+                elif name == 'hudi' and session == 1:
+                    events = events[14:]
             
             chapters, parameters = param_load(name,session)
             id1 = np.argmin(np.abs(parameters - 1))
             id2 = id1 + np.argmin(np.abs(parameters[id1+1:] - 1)) + 1
             
             for n_trial in [id1,id2]:
-                if (name == 'lad' and session == 1) or (name == 'yr' and session == 1):
+                if (name == 'lad' and session == 1) or (name == 'yr' and session == 1) or (name == 'elios' and session == 1):
                     if name == 'lad' and n_trial < 3:
                         raw = raw0.copy()
-                    if name == 'yr' and n_trial < 13:
+                    elif name == 'yr' and n_trial < 13:
+                        raw = raw0.copy()
+                    elif name == 'elios' and n_trial < 15:
                         raw = raw0.copy()
                     else:
                         raw = raw1.copy()      
@@ -1299,10 +1345,10 @@ def load_tactile_task(name_list,mode = 'condition', sessionwise = True):
                 button = raw.copy().crop(start_trial/1000,end_trial/1000)['Button'][0][0]
                 
                 for pulse in Tactile.astype(int):
-                    Tactile_Score[name + str(session * sessionwise)] += (np.max(button[int(pulse):int(pulse) + 3000]) > 1) / 40
-                    
+                    Tactile_Score[name + str(session * sessionwise)] += (np.max(button[int(pulse):int(pulse) + 2000]) > 1) / 40
+
     #plt.bar(Tactile_Score.keys(),Tactile_Score.values())
-    
+    plt.bar(Tactile_Score.keys(),Tactile_Score.values())
     return Tactile_Score
     
 

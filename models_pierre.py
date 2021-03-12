@@ -651,7 +651,8 @@ class TRFEstimator(BaseEstimator):
         self.XtY_ = None
         return self
     
-    def predict(self, X):
+
+    def predict_response(self, X, part_length = 300, delay_cond = 0):
         """Compute output based on fitted coefficients and feature matrix X.
         Parameters
         ----------
@@ -668,24 +669,46 @@ class TRFEstimator(BaseEstimator):
         is large).
         """
         assert self.fitted, "Fit model first!"
+        part_length = int(part_length*self.srate) # seconds to samples
 
-        if self.fit_intercept:
-            betas = np.concatenate((self.intercept_, self.coef_), axis=0)
+
+        ### ToDo -> add padding to the segment to spare some data...
+        segments = [(part_length * i) + np.arange(part_length) for i in range(X.shape[0] // part_length)] # Indices making up segments
+
+        if X.shape[0] % part_length > part_length/2:
+            segments = segments + [np.arange(segments[-1][-1], X.shape[0])] # Create new segment from leftover data (if more than 1/2 part length)
         else:
-            #betas = self.get_coef()[:]
-            betas = self.coef_[:]
-
-        # Check if input has been lagged already, if not, do it:
-        if X.shape[1] != int(self.fit_intercept) + len(self.lags) * self.n_feats_:
-            # LOGGER.info("Creating lagged feature matrix...")
-            X = lag_matrix(X, lag_samples=self.lags, filling=0.)
-            if self.fit_intercept: # Adding intercept feature:
-                X = np.hstack([np.ones((len(X), 1)), X])
+            segments[-1] = np.concatenate((segments[-1], np.arange(segments[-1][-1], X.shape[0]))) # Add letover data to the last segment
+    
+        X = [X[segments[i],:] for i in range(len(segments))]
         
-        # Do it for every alpha
-        pred = np.stack([X.dot(betas[:,:,:,i]) for i in range(betas.shape[-1])], axis=-1)
-
+        pred = []
+        
+        for X_part in X:
+            
+            if self.fit_intercept:
+                betas = np.concatenate((self.intercept_, np.flip(self.get_coef()[:,0,:,0],axis=0)), axis=0)
+            else:
+                #betas = self.get_coef()[:]
+                betas = np.flip(self.get_coef()[:,0,:,0],axis=0)
+    
+            betas = np.roll(betas,-delay_cond,axis=0)
+            # Check if input has been lagged already, if not, do it:
+            if X_part.shape[1] != int(self.fit_intercept) + len(self.lags) * self.n_feats_:
+                # LOGGER.info("Creating lagged feature matrix...")
+                X_part = lag_matrix(X_part, lag_samples=self.lags, filling=0.)
+                if self.fit_intercept: # Adding intercept feature:
+                    X_part = np.hstack([np.ones((len(X_part), 1)), X_part])
+            
+            # Do it for every alpha
+            pred_part = X_part.dot(betas)
+            #pred_part = (betas.T).dot(X_part.T)
+            pred.append(pred_part)
+        
+        pred = np.concatenate(pred)
+            
         return pred # Shape T x Nchan x Alpha
+    
     
     def score(self, Xtest, ytrue, scoring="corr"):
         """Compute a score of the model given true target and estimated target from Xtest.
@@ -869,63 +892,7 @@ class TRFEstimator(BaseEstimator):
         trf.lags = self.lags
 
         return trf
-    
-    def plot(self, feat_id=None, alpha_id=None, ax=None, spatial_colors=False, info=None, **kwargs):
-        """Plot the TRF of the feature requested as a *butterfly* plot.
-        Parameters
-        ----------
-        feat_id : list or int
-            Index of the feature requested or list of features.
-            Default is to use all features.
-        ax : array of axes (flatten)
-            list of subaxes
-        **kwargs : **dict
-            Parameters to pass to :func:`plt.subplots`
-        Returns
-        -------
-        fig : figure
-        """
-        if isinstance(feat_id, int):
-            feat_id = list(feat_id) # cast into list to be able to use min, len, etc...
-            if ax is not None:
-                fig = ax.figure
-        if not feat_id:
-            feat_id = range(self.n_feats_)
-        if len(feat_id) > 1:
-            if ax is not None:
-                fig = ax[0].figure
-        assert self.fitted, "Fit the model first!"
-        assert all([min(feat_id) >= 0, max(feat_id) < self.n_feats_]), "Feat ids not in range"
 
-        if ax is None:
-            if 'figsize' not in kwargs.keys():
-                fig, ax = plt.subplots(nrows=1, ncols=np.size(feat_id), figsize=(plt.rcParams['figure.figsize'][0] * np.size(feat_id), plt.rcParams['figure.figsize'][1]), **kwargs)
-            else:
-                fig, ax = plt.subplots(nrows=1, ncols=np.size(feat_id), **kwargs)
-
-        if spatial_colors:
-            assert info is not None, "To use spatial colouring, you must supply raw.info instance"
-            colors = get_spatial_colors(info)
-            
-        for k, feat in enumerate(feat_id):
-            if len(feat_id) == 1:
-                ax.plot(self.times, self.coef_[:, feat, :])
-                if self.feat_names_:
-                    ax.set_title('TRF for {:s}'.format(self.feat_names_[feat]))
-                if spatial_colors:
-                    lines = ax.get_lines()
-                    for kc, l in enumerate(lines):
-                        l.set_color(colors[kc])
-            else:
-                ax[k].plot(self.times, self.get_coef()[:, feat, :,0])
-                if self.feat_names_:
-                    ax[k].set_title('{:s}'.format(self.feat_names_[feat]))
-                if spatial_colors:
-                    lines = ax[k].get_lines()
-                    for kc, l in enumerate(lines):
-                        l.set_color(colors[kc])
-                        
-        return fig
     
     
 
