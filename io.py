@@ -38,8 +38,6 @@ File_ref = dict()
 File_ref['al'] = ['al', 'al_2']
 File_ref['yr'] = [['yr','yr2'], 'yr_2']
 File_ref['phil'] = ['phil_1', 'phil_2']
-File_ref['jon'] = ['jon', 'jon_2']
-File_ref['deb'] = ['deb', 'deb2']
 File_ref['chap'] = ['chap_1', 'chap_2']
 File_ref['alio'] = ['alio_1', 'alio_2']
 File_ref['sep'] = ['sep_1', 'sep_2']
@@ -50,14 +48,12 @@ File_ref['zartan'] = ['zartan_1', 'zartan_2']
 File_ref['hudi'] = ['hudi_1', 'hudi_2']
 File_ref['nima'] = ['nima', 'nima_2']
 File_ref['raqu'] = ['raqu', 'raqu_2']
-File_ref['maza'] = ['maza_1', 'maza_2']
 File_ref['naga'] = ['naga_1', 'naga_2']
 File_ref['nikf'] = ['nikf', 'nikf_2']
 File_ref['elios'] = [['elios_1','elios_1_2'], 'elios_2']
 File_ref['miya'] = ['miya_1', 'miya_2']
 File_ref['olio'] = ['olio_1', 'olio_2']
-File_ref['wica'] = ['wica_1', 'wica_2']
-File_ref['data'] = ['data_1', 'data_2']
+
 
 
 
@@ -73,14 +69,11 @@ Conditions_EEG[6] = {'type':'audio-tactile','delay':-180,'correlated':True} #aud
 Conditions_EEG[7] = {'type':'audio-tactile','delay':0,'correlated':False} #uncorrelated (tactile uncorrelated)
 
 Bad_trial = dict()
-Bad_trial['deb1'] = True
 
 Bad_Channels = dict()
 Bad_Channels['phil'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
 Bad_Channels['al'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
 Bad_Channels['yr'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
-Bad_Channels['jon'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
-Bad_Channels['deb'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
 Bad_Channels['chap'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
 Bad_Channels['alio'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
 Bad_Channels['sep'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
@@ -91,14 +84,12 @@ Bad_Channels['zartan'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF
 Bad_Channels['hudi'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
 Bad_Channels['nima'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
 Bad_Channels['raqu'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
-Bad_Channels['maza'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
 Bad_Channels['naga'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
 Bad_Channels['nikf'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
 Bad_Channels['elios'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
 Bad_Channels['miya'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
 Bad_Channels['olio'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
-Bad_Channels['wica'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
-Bad_Channels['data'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
+
 
 path_behav = '/home/phg17/Documents/Behavioural Experiment/data/Behavioural_2' 
 path_data = '/home/phg17/Documents/EEG Experiment/Data Analysis/Data'
@@ -166,12 +157,7 @@ def load_eeg_data(name, session, Fs = 1000, low_freq = 1, high_freq = 30 , ica=F
     chnames : list
     stimtrack, button Press, Diode : ndarray
     """
-    #if name == 'deb' and session==2:
-    #    fname = ospath.join(path_data,name,'Session ' + str(session),name + str(session) + '.vhdr')
-    #    fpreload = ospath.join(path_data,name,'Session ' + str(session),name + str(session) + "_preload") 
-    #else:
-    #    fname = ospath.join(path_data,name,'Session ' + str(session),name + '.vhdr')
-    #    fpreload = ospath.join(path_data,name,'Session ' + str(session),name + "_preload")
+
     
     fname, fpreload = get_raw_name(name,session)
     print(fname)
@@ -351,11 +337,6 @@ def save_raw_data(name, session, cond_list, Fs = 1000):
     
     start = 0
     end = 16
-    if name == 'deb' and session == 1:
-        start = 1
-    if name == 'deb' and session == 2:
-        events = events[5:-1]
-        start = 3
     if name == 'yr' and session == 1:
         end = 13
     
@@ -367,14 +348,8 @@ def save_raw_data(name, session, cond_list, Fs = 1000):
         
         if parameter in cond_list:
             audio, tactile, dirac, phonetic_features,phonemes, spectro,pitch, f0, noise = stimuli_load(path_stimuli, chapter, part, Fs=1000)
-            if name == 'deb' and session==1:
-                start_trial = events[n_trial-1]  
-                
-            elif name == 'deb' and session==2:
-                start_trial = events[n_trial-3] 
-                
-            else:    
-                start_trial = events[n_trial]
+
+            start_trial = events[n_trial]
             
             length_trial = len(audio)
             end_trial = start_trial + length_trial
@@ -933,8 +908,6 @@ def Tactile_ERP(name_list, session, F_resample, Fs=1000, t_min = -1., t_max = 1.
         chapters, parameters = param_load(name,session)
         start = 0
         end = 16
-        if name == 'deb':
-            start = 1
         if name == 'yr':
             end = 13
         
@@ -944,11 +917,7 @@ def Tactile_ERP(name_list, session, F_resample, Fs=1000, t_min = -1., t_max = 1.
             part = n_trial%4 + 1
             parameter = parameters[n_trial]
             audio, tactile, dirac, phonetic_features, phonemes, spectro,pitch, f0, noise = stimuli_load(path_stimuli, chapter, part, F_resample)
-            if name == 'deb':
-                start_trial = events[n_trial-1]
-                
-            else:    
-                start_trial = events[n_trial]
+            start_trial = events[n_trial]
             
             #length_trial = len(audio)
             #end_trial = start_trial + length_trial
