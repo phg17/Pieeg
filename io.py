@@ -53,7 +53,6 @@ File_ref['raqu'] = ['raqu', 'raqu_2']
 File_ref['maza'] = ['maza_1', 'maza_2']
 File_ref['naga'] = ['naga_1', 'naga_2']
 File_ref['nikf'] = ['nikf', 'nikf_2']
-File_ref['riva'] = ['riva_1', 'riva_2']
 File_ref['elios'] = [['elios_1','elios_1_2'], 'elios_2']
 File_ref['miya'] = ['miya_1', 'miya_2']
 File_ref['olio'] = ['olio_1', 'olio_2']
@@ -95,7 +94,6 @@ Bad_Channels['raqu'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3'
 Bad_Channels['maza'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
 Bad_Channels['naga'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
 Bad_Channels['nikf'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
-Bad_Channels['riva'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
 Bad_Channels['elios'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
 Bad_Channels['miya'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
 Bad_Channels['olio'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
@@ -1141,8 +1139,6 @@ def Align_and_Save_from_Raw(name, session, F_resample_list, Fs=1000, apply_ica =
         trials = [0,1,2,3,4,5,6,7,8,9,10,11,13,14,15]
     elif name == 'naga' and session == 1:
         trials = [1,2,3,4,5,6,7,8,9,10,11,12,14,15]
-    elif name == 'riva' and session == 1:
-        trials = [0,1,2,3,4,5,6,7,8,9,10,12,13,14,15]
     elif name == 'elios' and session == 1:
         trials = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,15]
     
