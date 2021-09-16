@@ -55,6 +55,11 @@ File_ref['naga'] = ['naga_1', 'naga_2']
 File_ref['nikf'] = ['nikf', 'nikf_2']
 File_ref['riva'] = ['riva_1', 'riva_2']
 File_ref['elios'] = [['elios_1','elios_1_2'], 'elios_2']
+File_ref['miya'] = ['miya_1', 'miya_2']
+File_ref['olio'] = ['olio_1', 'olio_2']
+File_ref['wica'] = ['wica_1', 'wica_2']
+File_ref['data'] = ['data_1', 'data_2']
+
 
 
 
@@ -92,6 +97,10 @@ Bad_Channels['naga'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3'
 Bad_Channels['nikf'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
 Bad_Channels['riva'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
 Bad_Channels['elios'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
+Bad_Channels['miya'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
+Bad_Channels['olio'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
+Bad_Channels['wica'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
+Bad_Channels['data'] = [['CPz','FCz','FC6','AF3','AF7'],['CPz','FCz','FC6','AF3','AF7']]
 
 path_behav = '/home/phg17/Documents/Behavioural Experiment/data/Behavioural_2' 
 path_data = '/home/phg17/Documents/EEG Experiment/Data Analysis/Data'
@@ -465,7 +474,7 @@ def param_load(name, session):
     return chapters, parameters
     
 
-def stimuli_load(path, chapter, part, Fs=39062.5, phonetics = False, phonemes_extraction = False, specter = False, long = True):
+def stimuli_load(path, chapter, part, Fs=39062.5, phonetics = False, phonemes_extraction = False, specter = False, long = True,path_save_data = path_data):
     """Function to load the stimuli linked to a trial and resample them to the wanted frequency.
 
     Parameters
@@ -494,7 +503,7 @@ def stimuli_load(path, chapter, part, Fs=39062.5, phonetics = False, phonemes_ex
     else:
         phon_feat = load_npz(file + '_compressed_phonetic_features.npz').toarray()
         phonemes = load_npz(file + '_compressed_phonemes.npz').toarray()
-    path_Fs = ospath.join(path_data, str(Fs) + 'Hz')
+    path_Fs = ospath.join(path_save_data, str(Fs) + 'Hz')
     
     if long:
         phon_name = "Odin_" + str(chapter) + '_' + str(part) + '_compressed_long_phonetic_features.npy'
@@ -771,7 +780,7 @@ def get_raw_info():
     return raw.info
 
 
-def Generate_Arrays(name_list,sessions,parameter_list,Fs,non_lin=1,ica=False,erp=False,concatenate=True):
+def Generate_Arrays(name_list,sessions,parameter_list,Fs,non_lin=1,ica=False,erp=False,concatenate=True,dirac_tact = True):
     
     envelopes = []
     diracs = []
@@ -880,6 +889,8 @@ def Generate_Arrays(name_list,sessions,parameter_list,Fs,non_lin=1,ica=False,erp
         x7 = np.concatenate(spectro_list)[:len(y),:]
         x8 = np.concatenate(pitch_list)[:len(y),:]
         x9 = np.concatenate(f0_list)[:len(y),:]
+        if not dirac_tact:
+            x2 = (np.concatenate(tactiles)[:len(y)]).astype(int)
     else:
         y = total_eeg[0]
         x1 = envelopes
@@ -891,6 +902,8 @@ def Generate_Arrays(name_list,sessions,parameter_list,Fs,non_lin=1,ica=False,erp
         x7 = spectro_list
         x8 = pitch_list
         x9 = f0_list
+        if not dirac_tact:
+            x2 = tactiles
     
     return y,x1,x2,x3,x4,x5,x6,x7,x8,x9
     
@@ -969,6 +982,7 @@ def load_behavioural():
     behav_result = pickle.load(pkl_file)
     pkl_file.close()
     return behav_result
+
     
 def subjective_scaling(name,session):
 
@@ -1057,7 +1071,7 @@ def Robust_Detrend(raw, Fs, order = 10, robust = False, n_iter = 2, threshold = 
 
 
 
-def Align_and_Save_from_Raw(name, session, F_resample_list, Fs=1000, apply_ica = False,detrend=None, phonetics = True):
+def Align_and_Save_from_Raw(name, session, F_resample_list, Fs=1000, apply_ica = False,detrend=None, phonetics = True, path_save_data = path_data):
     
     cond_count = dict()
     for cond in range(8):
@@ -1151,7 +1165,7 @@ def Align_and_Save_from_Raw(name, session, F_resample_list, Fs=1000, apply_ica =
         parameter = parameters[n_trial]
         
         print('\n \n \n \n Aligning Data for trial ', str(n_trial + 1), ' out of 16', '\n')
-        audio, tactile, dirac, phonetic_features, phonemes, spectro,pitch, f0, noise = stimuli_load(path_stimuli, chapter, part, Fs=1000)
+        audio, tactile, dirac, phonetic_features, phonemes, spectro,pitch, f0, noise = stimuli_load(path_stimuli, chapter, part, Fs=1000,path_save_data = path_save_data)
         start_trial = events[n_trial]
         length_trial = len(audio)
         end_trial = start_trial + length_trial
@@ -1199,11 +1213,12 @@ def Align_and_Save_from_Raw(name, session, F_resample_list, Fs=1000, apply_ica =
             raw_current_detrend.interpolate_bads()
 
         
-        audio, tactile, dirac, phonetic_features, phonemes, spectro,pitch, f0, noise = stimuli_load(path_stimuli, chapter, part)
+        audio, tactile, dirac, phonetic_features, phonemes, spectro,pitch, f0, noise = stimuli_load(path_stimuli, chapter, part,path_save_data = path_save_data)
         envelope2 = signal_envelope(audio, 39062.5, cutoff=20, method='hilbert') #changed from 20 to 30
         
         for F_resample in F_resample_list:
-            path_save = ospath.join(path_data, str(F_resample) + 'Hz')
+            path_save = ospath.join(path_save_data, str(F_resample) + 'Hz')
+
             raw_copy = raw_current_detrend.copy()
             F_eeg = raw_current_detrend.info['sfreq']
             if F_resample != F_eeg:
@@ -1213,7 +1228,7 @@ def Align_and_Save_from_Raw(name, session, F_resample_list, Fs=1000, apply_ica =
         
             envelope2_resample = mne.filter.resample(envelope2,F_resample,39062.5)
             trial = dict()
-            audio, tactile, dirac, phonetic_features, phonemes, spectro,pitch, f0, noise = stimuli_load(path_stimuli, chapter, part, F_resample,phonetics=True, phonemes_extraction=True,long=True,specter=True)
+            audio, tactile, dirac, phonetic_features, phonemes, spectro,pitch, f0, noise = stimuli_load(path_stimuli, chapter, part, F_resample,phonetics=True, phonemes_extraction=True,long=True,specter=True,path_save_data = path_save_data)
             syllables = np.copy(dirac)
             tactile = np.roll(tactile,int(condition['delay']/ 1000 * F_resample))
             dirac = np.roll(dirac,int(condition['delay']/ 1000 * F_resample))
@@ -1240,6 +1255,10 @@ def Align_and_Save_from_Raw(name, session, F_resample_list, Fs=1000, apply_ica =
             cond_count[parameter][F_resample] += 1
             
             filename = get_name(parameter,name,session,count,F_resample,ica=apply_ica)
+            if path_save_data != path_data:
+                filename = filename[59 + len(str(F_resample)):]
+            print(filename)
+            print(path_save)
             file = ospath.join(path_save,filename)
             print(file)
         
@@ -1358,7 +1377,8 @@ def define_ROI(info,rois = [1,1,1,0,0]):
     '''
 
     # Calculate adjacency matrix between sensors from their locations
-    adjacency, ch_list = find_ch_connectivity(info, "eeg")
+    #adjacency, ch_list = find_ch_connectivity(info, "eeg")
+    ch_list = info['ch_names']
     #adjacency = adjacency.toarray()
     
     left_ROI = ['FT9','FT7','FC5','C5','CP5','TP7','TP9','T7','FC3','C3','CP3']

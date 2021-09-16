@@ -714,3 +714,100 @@ def signal_envelope_2(audio, srate, cutoff=20., method='hilbert', comp_factor=1.
     
     # Scale output between 0 and 1:
     return minmax_scale(env)
+
+def choose_regularization(accuracy, accuracy_additive, method = 'constant', optimization_objective = 'accuracy', alpha = 40, penalize = 2, plot = False):
+    n_fold = accuracy.shape[0]
+    
+    if optimization_objective == 'accuracy':
+        opti = accuracy
+    elif optimization_objective == 'accuracy_additive':
+        opti = accuracy_additive
+    elif optimization_objective == 'gain':
+        opti = accuracy - accuracy_additive
+    elif optimization_objective == 'absolute_gain':
+        opti = (accuracy - accuracy_additive) / np.power(accuracy + accuracy_additive + 1,penalize)
+        opti_deriv = opti[:,1:] - opti[:,:-1]
+    elif 'sum':
+        opti = (accuracy + accuracy_additive)/2
+    else:
+        return 'not in function'
+    
+    if plot:
+        plt.plot(np.mean(opti,axis=0))
+        
+    if method == 'constant':
+        return np.repeat(alpha,n_fold)
+    
+    elif method == 'mean':
+        if optimization_objective == 'absolute_gain':
+            extrema = []
+            opti_deriv = np.mean(opti_deriv,axis=0)
+            for i in range(len(opti_deriv) -1):
+                if np.sign(opti_deriv[i]) > np.sign(opti_deriv[i+1]):
+                    extrema.append(i+1)
+            if extrema:
+                return np.repeat(extrema[np.argmax(np.mean(opti,axis=0)[extrema])],n_fold)
+            else:
+                return np.repeat(np.argmax(np.mean(opti,axis=0)),n_fold)
+        else:
+            return np.repeat(np.argmax(np.mean(opti,axis=0)),n_fold)
+        
+    elif method == 'max':
+        if optimization_objective == 'absolute_gain':
+            extrema = []
+            opti_deriv = np.mean(opti_deriv,axis=0)
+            for i in range(len(opti_deriv) -1):
+                if np.sign(opti_deriv[i]) > np.sign(opti_deriv[i+1]):
+                    extrema.append(i+1)
+            if extrema:
+                return np.repeat(extrema[np.argmax(np.mean(opti,axis=0)[extrema])],n_fold)
+            else:
+                return np.repeat(np.argmax(np.mean(opti,axis=0)),n_fold)
+        else:
+            #return np.argmax(opti,axis=1)
+            return np.repeat(np.argmax(np.mean(opti,axis=0)),n_fold)
+                    
+    elif method == 'nested':
+        values = []
+        if optimization_objective == 'absolute_gain':
+            for nest in range(n_fold):
+                extrema = []
+                folds = np.delete(np.arange(n_fold),nest)
+                opti_fold = opti[folds,:]
+                deriv_fold = np.mean(opti_deriv[folds,:],axis=0)
+                for i in range(len(deriv_fold) -1):
+                    if np.sign(deriv_fold[i]) > np.sign(deriv_fold[i+1]):
+                        extrema.append(i+1)
+                if extrema:
+                    values.append(extrema[np.argmax(np.mean(opti_fold,axis=0)[extrema])])
+                else:
+                    values.append(np.argmax(np.mean(opti_fold,axis=0)))
+                
+        else:
+            for nest in range(n_fold):
+                folds = np.delete(np.arange(n_fold),nest)
+                opti_fold = opti[folds,:]
+                values.append(np.argmax(np.mean(opti_fold,axis=0)))
+        return values
+            
+
+
+                        
+        
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    

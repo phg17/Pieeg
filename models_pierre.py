@@ -19,6 +19,7 @@ from scipy import linalg
 #import dtw
 import mne
 from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import scale
 #import pyriemann
 
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
@@ -178,6 +179,94 @@ def twed(A, timeSA, B, timeSB, nu, _lambda):
 
 
 
+def _ridge_fit_Pierre(x, y, alpha=[0.], from_cov=False, alpha_feature = False):
+    '''
+    SVD-inspired fast implementation of the SVD fitting.
+    Note: When fitting the intercept, it's also penalized!
+          If on doesn't want that, simply use average for each channel of y to estimate intercept.
+    Parameters
+    ----------
+    X : ndarray (nsamples x nfeats) or autocorrelation matrix XtX (nfeats x nfeats) (if from_cov == True)
+    y : ndarray (nsamples x nchans) or covariance matrix XtY (nfeats x nchans) (if from_cov == True)
+    alpha : array-like.
+        Default: [0.].
+        List of regularization parameters.
+    from_cov : bool
+        Default: False.
+        Use covariance matrices XtX & XtY instead of raw x, y arrays.
+    Returns
+    -------
+    model_coef : ndarray (model_feats* x alphas) *-specific shape depends on the model
+    '''
+    # Compute covariance matrices
+
+    if not from_cov:
+        XtX = _get_covmat(x,x)
+        XtY = _get_covmat(x,y)
+    else:
+        XtX = x[:]
+        XtY = y[:]
+
+    # Cast alpha in ndarray
+    if isinstance(alpha, float):
+        alpha = np.asarray([alpha])
+    elif alpha_feature:
+        alpha = np.asarray(alpha).T
+    else:
+        alpha = np.asarray(alpha)
+
+    # Compute eigenvalues and eigenvectors of covariance matrix XtX
+    S, V = linalg.eigh(XtX, overwrite_a=False, turbo=True)
+
+    # Sort the eigenvalues
+    s_ind = np.argsort(S)[::-1]
+    S = S[s_ind]
+    V = V[:, s_ind]
+
+    # Pick eigenvalues close to zero, remove them and corresponding eigenvectors
+    # and compute the average
+    tol = np.finfo(float).eps
+    tol = -0.15
+    r = sum(scale(S) > tol)
+    #r = sum(S > tol)
+    r = 200
+    S = S[0:r]
+    V = V[:, 0:r]
+    nl = np.mean(S)
+
+    # Compute z
+    z = np.dot(V.T,XtY)
+
+    # Initialize empty list to store coefficient for different regularization parameters
+    coeff = []
+
+    # Compute coefficients for different regularization parameters
+    if alpha_feature:
+        for l in alpha:
+            coeff.append(np.dot(V, (z/(S + nl*l)[:,np.newaxis])))
+
+    else:
+        for l in alpha:
+            coeff.append(np.dot(V, (z/(S[:, np.newaxis] + nl*l))))
+            
+            print(nl,l)
+            print(V.shape)
+            print(S.shape)
+            print(z.shape)
+    
+    print(coeff[0].shape)
+    design = 2*np.identity(r)
+    design[range(1,r),range(0,r-1)] = -1
+    for i in range(1,r):
+        design[range(0,r-i),range(i,r)] = -1/i
+        design[range(i,r),range(0,r-i)] = -1/i
+    coeff = [np.dot(np.linalg.inv(XtX + alpha[0] * design),XtY)]
+    print(coeff[0].shape)
+
+    return np.stack(coeff, axis=-1)
+
+
+
 def _ridge_fit_SVD(x, y, alpha=[0.], from_cov=False, alpha_feature = False):
     '''
     SVD-inspired fast implementation of the SVD fitting.
@@ -198,6 +287,7 @@ def _ridge_fit_SVD(x, y, alpha=[0.], from_cov=False, alpha_feature = False):
     model_coef : ndarray (model_feats* x alphas) *-specific shape depends on the model
     '''
     # Compute covariance matrices
+
     if not from_cov:
         XtX = _get_covmat(x,x)
         XtY = _get_covmat(x,y)
@@ -243,6 +333,10 @@ def _ridge_fit_SVD(x, y, alpha=[0.], from_cov=False, alpha_feature = False):
     else:
         for l in alpha:
             coeff.append(np.dot(V, (z/(S[:, np.newaxis] + nl*l))))
+            print(nl,l)
+            print(V.shape)
+            print(S.shape)
+            print(z.shape)
 
 
     return np.stack(coeff, axis=-1)
@@ -448,7 +542,7 @@ class TRFEstimator(BaseEstimator):
         return X, y
     
     
-    def fit(self, X, y, lagged=False, drop=True, feat_names=()):
+    def fit(self, X, y, lagged=False, drop=True, feat_names=(), mode = 'SVD'):
         """Fit the TRF model.
         Mapping X -> y. Note the convention of timelags and type of model for seamless recovery of coefficients.
         Parameters
@@ -477,7 +571,10 @@ class TRFEstimator(BaseEstimator):
             X = np.hstack([np.ones((len(X), 1)), X])
 
         # Regress with Ridge to obtain coef for the input alpha
-        self.coef_ = _ridge_fit_SVD(X, y, self.alpha)
+        if mode == 'SVD':
+            self.coef_ = _ridge_fit_SVD(X, y, self.alpha)
+        elif mode == 'Pierre':
+            self.coef_ = _ridge_fit_Pierre(X, y, self.alpha)
 
         # Reshaping and getting coefficients
         if self.fit_intercept:
@@ -559,7 +656,7 @@ class TRFEstimator(BaseEstimator):
         
         return self
     
-    def fit_direct_cov(self, XXcov=None, XYcov=None, lagged=False, drop=True, overwrite=True, part_length=150., clear_after=True):
+    def fit_direct_cov(self, XXcov=None, XYcov=None, lagged=False, drop=True, overwrite=True, part_length=150., clear_after=True, mode = 'SVD'):
 
 
         self.XtX_ = XXcov
@@ -567,7 +664,10 @@ class TRFEstimator(BaseEstimator):
 
         self.fit_intercept = False
         self.intercept_ = None
-        self.coef_ = _ridge_fit_SVD(self.XtX_, self.XtY_, self.alpha, from_cov=True)
+        if mode == 'SVD':
+            self.coef_ = _ridge_fit_SVD(self.XtX_, self.XtY_, self.alpha, from_cov=True)
+        elif mode == 'Pierre':
+            self.coef_ = _ridge_fit_Pierre(self.XtX_, self.XtY_, self.alpha, from_cov=True)
         self.fitted = True
 
         if clear_after:
@@ -578,7 +678,7 @@ class TRFEstimator(BaseEstimator):
     
     
     
-    def fit_from_cov(self, X=None, y=None, lagged=False, drop=True, overwrite=True, part_length=150., clear_after=True):
+    def fit_from_cov(self, X=None, y=None, lagged=False, drop=True, overwrite=True, part_length=150., clear_after=True, mode = 'SVD'):
         '''
         Fit model from covariance matrices (handy for v. large data).
         Note: This method is intercept-agnostic. It's recommended to standardize the input data and avoid fitting intercept in the first place.
@@ -633,7 +733,10 @@ class TRFEstimator(BaseEstimator):
 
         self.fit_intercept = False
         self.intercept_ = None
-        self.coef_ = _ridge_fit_SVD(self.XtX_, self.XtY_, self.alpha, from_cov=True)
+        if mode == 'SVD':
+            self.coef_ = _ridge_fit_SVD(self.XtX_, self.XtY_, self.alpha, from_cov=True)
+        elif mode == 'Pierre':
+            self.coef_ = _ridge_fit_Pierre(self.XtX_, self.XtY_, self.alpha, from_cov=True)
         self.fitted = True
 
         if clear_after:
